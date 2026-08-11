@@ -36,12 +36,27 @@ These have two plausible meanings. Never write them bare.
 | summary | `items.summary` | the one line the list shows. Written by whoever writes the item |
 | body | `sections.body` | the varying part of a section: its text, and whatever its reply form needs |
 | origin | `items.origin_item_id`, `items.origin_section_id` | the item and section this one was raised from, when it was raised beside a reply |
+| write | `POST /api/items` | to create an item. An agent writing one is also a break, so the word carries more than it looks |
+| raise | `POST /api/items` with an origin | to create an item beside a reply, when the thought has nothing to do with what is on screen. Recorded as `origin`, because it cannot be reconstructed afterwards |
+
+### Section kinds
+
+The four values of `sections.kind`. A section is exactly one of them, and an item may hold several of the same.
+
+| Kind | Meaning |
+|---|---|
+| report | what happened. Written after the fact, and the form a finished request comes back in |
+| notice | something worth knowing that changes nothing on its own |
+| question | something the writer cannot decide alone. Carries a reply form, otherwise it is not a question |
+| request | work handed over. Carries the `pickup` reply form when it is meant to be taken |
+
+Nothing in the schema stops a kind from carrying any reply form. Some combinations do not occur in practice; encoding the prohibition would only push a workaround when the exception shows up.
 
 ### Answering
 
 | Word | Where it exists | Meaning |
 |---|---|---|
-| reply form | `sections.reply_form` | how a section is answered: `free_text`, `choice`, `approval`, `external_tool`, `pickup`. Null means no answer is owed |
+| reply form | `sections.reply_form` | how a section is answered. Null means no answer is owed — that, and not the kind, is what makes a section reply-free |
 | reply | `sections.reply` | the answer itself |
 | unanswered | `sections.state` | an answer is owed and nobody has postponed it |
 | answered | `sections.state` | the answer arrived |
@@ -50,6 +65,24 @@ These have two plausible meanings. Never write them bare.
 | settled | derived, stored nowhere | a section that owes nothing: `answered`, `done`, or with no reply form. Deferred is **not** settled |
 | closed | `items.closed_at` | the item is done with, whatever its sections say. Set explicitly; it wins over derivation |
 | read | `items.read_at` | a mark, not a state. It never decides whether an item is open |
+
+### Reply forms
+
+The values of `sections.reply_form`. The list is meant to grow, which is why it is a checked text column and not a database enum.
+
+| Reply form | How it is answered | What the body carries |
+|---|---|---|
+| free text | a written answer | — |
+| choice | one of the offered options is picked | `options`, each an option value and its label |
+| approval | one click saying whether to proceed | — |
+| external tool | the work happens elsewhere, then one click on return | `link`, the address it points at |
+| pickup | it is taken and started, rather than answered | — |
+
+| Word | Where it exists | Meaning |
+|---|---|---|
+| option | `sections.body.options` | one of the choices offered by a `choice` section. The reply records which one |
+| decision | `sections.reply` | what an `approval` section came back with: proceed or not |
+| link | `sections.body.link` | where an `external_tool` section sends you. Recorded because the interface needs it and it cannot be reconstructed |
 
 ### Requests
 
@@ -62,6 +95,7 @@ These have two plausible meanings. Never write them bare.
 | progress | `sections.progress_at` | the last sign of movement. Used to tell a live request from an abandoned one |
 | stale | derived from `progress_at` | in progress with no movement for long enough. A stale request returns to `not started` |
 | break | not stored | the moment an agent writes an item. Writing is itself the claim that a unit of work finished, so it is when requests get picked up |
+| minimum interval | `FUDA_PICKUP_MIN_INTERVAL` | the floor under picking up. Long stretches with no writes would otherwise leave requests sitting, so once enough time has passed an agent picks up without writing. Time, not turn count — turns do not correlate with how much work happened |
 
 ### Attribution
 
@@ -70,6 +104,15 @@ These have two plausible meanings. Never write them bare.
 | attribution | `items.attribution` | where an item came from, as arbitrary labels. Not fixed columns: one agent supplies a session, a repository and a branch, another supplies whatever identifies it |
 
 Attribution is the join key to anything outside fuda. Whatever identifies a machine, a directory or a session elsewhere can be put in here as a label, and fuda stays ignorant of what it means.
+
+### The screen
+
+| Word | Where it exists | Meaning |
+|---|---|---|
+| the list | left of the screen, `GET /api/items` | every open item, unanswered ones first and oldest first among those. It does not rank, and it does not suggest what to do next |
+| the detail pane | right of the screen, `GET /api/items/:id` | the selected item, and where replying happens. There is no second screen: moving between screens is a round trip, and round trips are what fuda exists to remove |
+| filter | query parameters on `GET /api/items` | narrowing the list. By attribution and state. Never by section kind — an item is a group of sections, so filtering by kind would cut items in half |
+| search | `q` on `GET /api/items` | finding items by their text, including closed ones |
 
 ### Notifications
 
