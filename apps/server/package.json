@@ -10,6 +10,7 @@
     "db:migrate": "bun run src/db/migrate-cli.ts"
   },
   "dependencies": {
+    "@fuda/core": "workspace:*",
     "drizzle-orm": "^0.44.7",
     "hono": "^4.10.4",
     "postgres": "^3.4.7",
