@@ -146,7 +146,7 @@ The interface can be changed later. What the interface requires to be recorded c
 - The time a section became unanswered, since ordering is by that and not by creation time
 - The link an external tool section points at
 - When a notification was last sent, needed both for batching and for capping reminders
-- Which sender, and which request section, each activity line came from. Neither can be worked out afterwards from the line's text
+- Which sender each activity line came from, and which request section it advances when it advances one. Neither can be worked out afterwards from the line's text
 
 ## Storage
 

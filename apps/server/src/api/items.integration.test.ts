@@ -1,17 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app.ts';
+import { assertDisposable } from '../db/disposable.ts';
 import { createDatabase, type Database } from '../db/client.ts';
 import { runMigrations } from '../db/migrate.ts';
 import { createItemRepository } from '../repository/items.ts';
 
 const url = process.env['FUDA_TEST_DATABASE_URL'];
 
-if (url !== undefined && url === process.env['FUDA_DATABASE_URL']) {
-  throw new Error(
-    'FUDA_TEST_DATABASE_URL is the same database as FUDA_DATABASE_URL. ' +
-      'This suite empties the tables; point it somewhere disposable.',
-  );
-}
+if (url !== undefined) assertDisposable(url, process.env['FUDA_DATABASE_URL']);
 
 /**
  * Driven through the real HTTP entry point against real PostgreSQL, because

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { assertDisposable } from './disposable.ts';
 import { createDatabase, type Database } from './client.ts';
 import { runMigrations } from './migrate.ts';
 
@@ -11,12 +12,7 @@ import { runMigrations } from './migrate.ts';
 // when both are set to the same thing by accident.
 const url = process.env['FUDA_TEST_DATABASE_URL'];
 
-if (url !== undefined && url === process.env['FUDA_DATABASE_URL']) {
-  throw new Error(
-    'FUDA_TEST_DATABASE_URL is the same database as FUDA_DATABASE_URL. ' +
-      'This suite drops the public schema; point it somewhere disposable.',
-  );
-}
+if (url !== undefined) assertDisposable(url, process.env['FUDA_DATABASE_URL']);
 
 describe.skipIf(!url)('migrations', () => {
   let database: Database;
