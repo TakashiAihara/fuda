@@ -150,12 +150,11 @@ Drizzle. The tables above are declared in TypeScript, `drizzle-kit generate` dif
 
 Row types come from the schema declaration, so the repository layer is typed against the database instead of against hand-written row types that drift from it silently.
 
-Two things drizzle-kit does not generate, hand-written into the migration file it produces:
+Measured rather than assumed, now that the schema exists: drizzle-kit generates the check constraints, the view, the GIN index on `attribution`, and the foreign keys. The one thing it does not generate is `create extension`, so `0000_extensions.sql` installing pg_trgm stays hand-written.
 
-- `create extension if not exists pg_trgm`, which the search index needs
-- The check constraints on `kind`, `reply_form` and `state`. Whether the current drizzle-kit emits these is verified in step 2 rather than assumed; if it does, the hand-written version goes away
+Claim paths use `update … where … returning` and `select … for update skip locked`, both expressible directly, and anything awkward drops to `sql`.
 
-Everything else this schema needs is generated: the `item_list` view, the GIN index on `attribution`, and the trigram index with `gin_trgm_ops`. The claim path's `update … where … returning` and `select … for update skip locked` are both expressible directly, and anything awkward drops to `sql`.
+One caution learned by being caught by it: a raw `sql` fragment containing `or` must carry its own parentheses. `and` binds tighter, so an unwrapped disjunction escapes the conjunction it was meant to join and silently widens the query — every other filter stops applying to whatever that clause lets through. A test comparing a recipient filter against real rows is what surfaced it.
 
 ## 3. HTTP API
 
@@ -321,7 +320,7 @@ Each step leaves the tree working and is one draft PR.
 | #   | Contents                                                                                                                                                                         | Working means                                                |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | 1 ✅ | Workspace, TypeScript, lint, `compose.yaml`, PostgreSQL, migration runner, `docs/glossary.md`, CI                                                                                | `docker compose up` is healthy                               |
-| 2   | core schemas and state machines, tables, repository, `POST`/`GET` items                                                                                                          | an item round-trips through the API, with tests              |
+| 2 ✅ | core schemas and state machines, tables, repository, `POST`/`GET` items                                                                                                          | an item round-trips through the API, with tests              |
 | 3   | `fuda write`, `list`, `show`                                                                                                                                                     | the agent can store and read items                           |
 | 4   | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE                                                                                                   | the loop closes without the terminal                         |
 | 4b | Activity: the table, `POST`/`GET /api/activity`, `fuda activity`, the third region of the screen and its toasts | the work is watchable without the terminal |

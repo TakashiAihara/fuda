@@ -5,9 +5,11 @@ WORKDIR /app
 # Dependencies first, so editing source does not reinstall them.
 COPY package.json bun.lock ./
 COPY apps/server/package.json apps/server/package.json
+COPY packages/core/package.json packages/core/package.json
 RUN bun install --frozen-lockfile
 
 COPY tsconfig.json ./
+COPY packages ./packages
 COPY apps ./apps
 
 USER bun

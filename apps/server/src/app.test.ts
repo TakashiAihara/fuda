@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app.ts';
+import type { ItemRepository } from './repository/items.ts';
+
+// /health does not touch storage, so this stands in for it without pretending
+// to be one.
+const noRepository = {} as ItemRepository;
 
 describe('GET /health', () => {
   it('is ok while the database answers', async () => {
-    const app = createApp({ probeDatabase: async () => true });
+    const app = createApp({
+      probeDatabase: async () => true,
+      repository: noRepository,
+      personIdentity: 'person',
+    });
 
     const response = await app.request('/health');
 
@@ -12,7 +21,11 @@ describe('GET /health', () => {
   });
 
   it('is not ok when the database does not answer', async () => {
-    const app = createApp({ probeDatabase: async () => false });
+    const app = createApp({
+      probeDatabase: async () => false,
+      repository: noRepository,
+      personIdentity: 'person',
+    });
 
     const response = await app.request('/health');
 
@@ -29,6 +42,8 @@ describe('GET /health', () => {
         asked += 1;
         return true;
       },
+      repository: noRepository,
+      personIdentity: 'person',
     });
 
     await app.request('/health');

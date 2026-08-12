@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "db:migrate": "bun run src/db/migrate-cli.ts"
+    "db:migrate": "bun run src/db/migrate-cli.ts",
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@fuda/core": "workspace:*",
@@ -15,5 +16,8 @@
     "hono": "^4.10.4",
     "postgres": "^3.4.7",
     "zod": "^4.1.14"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.6"
   }
 }

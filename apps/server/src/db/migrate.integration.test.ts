@@ -42,14 +42,15 @@ describe.skipIf(!url)('migrations', () => {
 
   it('is idempotent, because the server migrates on every start', async () => {
     await runMigrations(database);
+    const [before] = await database.sql`select count(*)::int as count from drizzle.__drizzle_migrations`;
+
     await runMigrations(database);
+    const [after] = await database.sql`select count(*)::int as count from drizzle.__drizzle_migrations`;
 
-    const applied = await database.sql`
-      select count(*)::int as count from drizzle.__drizzle_migrations
-    `;
-
-    // Applied once, no matter how many times the server restarted.
-    expect(applied[0]?.['count']).toBe(1);
+    // Each migration is applied once, however many times the server restarted.
+    // Counted rather than hardcoded: the number of migrations grows.
+    expect(after?.['count']).toBe(before?.['count']);
+    expect(before?.['count']).toBeGreaterThan(0);
   });
 
   it('leaves the database answering afterwards', async () => {

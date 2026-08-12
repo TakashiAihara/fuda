@@ -2,13 +2,18 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { createDatabase } from './db/client.ts';
 import { runMigrations } from './db/migrate.ts';
+import { createItemRepository } from './repository/items.ts';
 
 const config = loadConfig(process.env);
 const database = createDatabase(config.databaseUrl);
 
 await runMigrations(database);
 
-const app = createApp({ probeDatabase: database.probe });
+const app = createApp({
+  probeDatabase: database.probe,
+  repository: createItemRepository(database),
+  personIdentity: config.personIdentity,
+});
 
 const server = Bun.serve({
   port: config.port,

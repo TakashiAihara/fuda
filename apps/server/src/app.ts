@@ -1,8 +1,13 @@
 import { Hono } from 'hono';
+import { createItemRoutes } from './api/items.ts';
+import type { ItemRepository } from './repository/items.ts';
 
 export type AppDependencies = {
   /** True when the database answers. Injected so the app can be tested without one. */
   probeDatabase: () => Promise<boolean>;
+  repository: ItemRepository;
+  /** Stamped as the sender on anything the browser sends. */
+  personIdentity: string;
 };
 
 export function createApp(deps: AppDependencies) {
@@ -24,6 +29,8 @@ export function createApp(deps: AppDependencies) {
       reachable ? 200 : 503,
     );
   });
+
+  app.route('/api', createItemRoutes({ repository: deps.repository, personIdentity: deps.personIdentity }));
 
   return app;
 }

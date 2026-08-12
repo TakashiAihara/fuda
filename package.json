@@ -17,7 +17,8 @@
     "fmt:check": "oxfmt --check",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "db:migrate": "bun run --cwd apps/server db:migrate"
+    "db:migrate": "bun run --cwd apps/server db:migrate",
+    "db:generate": "bun run --cwd apps/server db:generate"
   },
   "devDependencies": {
     "@tsconfig/bun": "^1.0.10",
