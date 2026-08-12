@@ -1,8 +1,9 @@
-import { REPLY_FORMS, SECTION_KINDS, SECTION_STATES, type SectionBody } from '@fuda/core';
+import { ANSWERING_STATES, REPLY_FORMS, REQUEST_STATES, SECTION_KINDS, type SectionBody } from '@fuda/core';
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -10,6 +11,7 @@ import {
   pgView,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -27,39 +29,19 @@ const id = () =>
     .primaryKey()
     .default(sql`uuidv7()`);
 
-export const items = pgTable(
-  'items',
-  {
-    id: id(),
-    summary: text('summary').notNull(),
-    // Required, never verified. See docs/glossary.md.
-    sender: text('sender').notNull(),
-    attribution: jsonb('attribution').$type<Record<string, string>>().notNull().default({}),
-    // Which item and section this was raised beside. Recorded from the start
-    // because it cannot be reconstructed afterwards.
-    originItemId: uuid('origin_item_id').references((): AnyPgColumn => items.id, {
-      onDelete: 'set null',
-    }),
-    originSectionId: uuid('origin_section_id'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    // A mark, not a state. It never decides whether an item is open.
-    readAt: timestamp('read_at', { withTimezone: true }),
-    closedAt: timestamp('closed_at', { withTimezone: true }),
-  },
-  (table) => [
-    // Attribution is filtered with @>, which is what a GIN index is for.
-    index('items_attribution_idx').using('gin', table.attribution),
-    index('items_sender_idx').on(table.sender),
-  ],
-);
-
+/**
+ * Declared before `items` on purpose. The two reference each other — sections
+ * belong to an item, and an item records the section it was raised beside — and
+ * TypeScript cannot infer both sides of a cycle. Sections points back lazily
+ * through `AnyPgColumn`, which lets items refer to this table concretely.
+ */
 export const sections = pgTable(
   'sections',
   {
     id: id(),
     itemId: uuid('item_id')
       .notNull()
-      .references(() => items.id, { onDelete: 'cascade' }),
+      .references((): AnyPgColumn => items.id, { onDelete: 'cascade' }),
     position: integer('position').notNull(),
     kind: text('kind').notNull(),
     // Null means no answer is owed. That, and not the kind, is what makes a
@@ -84,6 +66,8 @@ export const sections = pgTable(
     index('sections_item_id_idx').on(table.itemId),
     index('sections_unanswered_since_idx').on(table.unansweredSince),
     index('sections_recipient_idx').on(table.recipient),
+    // What the composite foreign key from items.origin_* points at.
+    unique('sections_item_id_id_key').on(table.itemId, table.id),
     // Checked text, not an enum. The reply forms are meant to grow, and adding
     // to a check constraint is a migration where altering an enum in use is a
     // fight.
@@ -92,9 +76,17 @@ export const sections = pgTable(
       'sections_reply_form_check',
       sql`${table.replyForm} is null or ${table.replyForm} in (${quoted(REPLY_FORMS)})`,
     ),
+    // Not just "is this a state" but "is this a state the section can be in".
+    // Without it a pickup section can sit in `unanswered` and an approval in
+    // `not_started`: values the state machine has no transition out of, and
+    // which make item_list count the wrong things.
     check(
       'sections_state_check',
-      sql`${table.state} is null or ${table.state} in (${quoted(SECTION_STATES)})`,
+      sql`
+        ${table.state} is null
+        or (${table.replyForm} = 'pickup' and ${table.state} in (${quoted(REQUEST_STATES)}))
+        or (${table.replyForm} <> 'pickup' and ${table.state} in (${quoted(ANSWERING_STATES)}))
+      `,
     ),
     // A section owes an answer exactly when it has a state to be in. Letting
     // these drift would make "settled" mean two different things.
@@ -109,6 +101,44 @@ export const sections = pgTable(
       'sections_unanswered_since_check',
       sql`${table.state} <> 'unanswered' or ${table.unansweredSince} is not null`,
     ),
+  ],
+);
+
+export const items = pgTable(
+  'items',
+  {
+    id: id(),
+    summary: text('summary').notNull(),
+    // Required, never verified. See docs/glossary.md.
+    sender: text('sender').notNull(),
+    attribution: jsonb('attribution').$type<Record<string, string>>().notNull().default({}),
+    // Which item and section this was raised beside. Recorded from the start
+    // because it cannot be reconstructed afterwards.
+    originItemId: uuid('origin_item_id'),
+    originSectionId: uuid('origin_section_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // A mark, not a state. It never decides whether an item is open.
+    readAt: timestamp('read_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (table) => [
+    // Attribution is filtered with @>, which is what a GIN index is for.
+    index('items_attribution_idx').using('gin', table.attribution),
+    index('items_sender_idx').on(table.sender),
+    // An origin is a pair. Half of one names an item without saying which
+    // section, or a section with no item to find it in.
+    check(
+      'items_origin_pair_check',
+      sql`(${table.originItemId} is null) = (${table.originSectionId} is null)`,
+    ),
+    // And the section has to be one of that item's own, which one column
+    // pointing at sections could not say. On delete both columns clear
+    // together, which is the only way to keep satisfying the pair check.
+    foreignKey({
+      columns: [table.originItemId, table.originSectionId],
+      foreignColumns: [sections.itemId, sections.id],
+      name: 'items_origin_fk',
+    }).onDelete('set null'),
   ],
 );
 

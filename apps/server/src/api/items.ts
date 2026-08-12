@@ -24,7 +24,6 @@ const listQuerySchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
-  recipient: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
@@ -68,14 +67,18 @@ export function createItemRoutes(deps: ItemRoutesDependencies) {
     }
 
     const attribution = parseAttribution(c.req.queries('attribution') ?? []);
-    const recipient = c.req.query('recipient');
+    const recipient = c.req.queries('recipient');
 
     const listed = await deps.repository.list({
       ...parsed.data,
       attribution,
-      // An explicit empty value asks for what is addressed to nobody, which is
-      // a different question from not filtering by recipient at all.
-      ...(recipient === undefined ? {} : { recipient: recipient === '' ? null : recipient }),
+      // Repeatable, because the person's own view is "waiting on me or on
+      // nobody" and one value cannot say that. An empty value is the request
+      // for unaddressed sections, which is a different question from not
+      // filtering by recipient at all.
+      ...(recipient === undefined
+        ? {}
+        : { recipients: recipient.map((value) => (value === '' ? null : value)) }),
     });
 
     return c.json({ items: listed });

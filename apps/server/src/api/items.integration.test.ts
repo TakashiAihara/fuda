@@ -127,6 +127,7 @@ describe.skipIf(!url)('items over HTTP', () => {
       summary: 'raised from nowhere',
       sender: 'a',
       originItemId: '019ff5f5-a041-7cae-b500-fd404389867a',
+      originSectionId: '019ff5f5-a041-7cae-b500-fd404389868b',
       sections: [{ kind: 'question', replyForm: 'free_text', body: { text: 'ok' } }],
     });
 
@@ -219,6 +220,46 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(((await toNobody.json()) as { items: { summary: string }[] }).items.map((i) => i.summary)).toEqual(
       ['for anyone'],
     );
+  });
+
+  it('answers the view the person actually opens: waiting on me, or on nobody', async () => {
+    // The requirements make this the default screen. One recipient value cannot
+    // express it, and asking twice would break both the ordering and the limit.
+    await write({
+      summary: 'for the person',
+      sender: 'pm',
+      sections: [{ kind: 'question', replyForm: 'approval', recipient: 'person', body: { text: 'ok?' } }],
+    });
+    await write({
+      summary: 'for another agent',
+      sender: 'pm',
+      sections: [
+        { kind: 'question', replyForm: 'approval', recipient: 'session:worker', body: { text: 'ok?' } },
+      ],
+    });
+    await write({
+      summary: 'for anyone',
+      sender: 'pm',
+      sections: [{ kind: 'request', replyForm: 'pickup', body: { text: 'whoever' } }],
+    });
+
+    const mine = await app.request('/api/items?recipient=person&recipient=');
+    const { items } = (await mine.json()) as { items: { summary: string }[] };
+
+    expect(items.map((i) => i.summary).toSorted()).toEqual(['for anyone', 'for the person'].toSorted());
+  });
+
+  it('refuses half an origin', async () => {
+    // An item raised beside something has to say beside what. Naming the item
+    // without the section, or the section without the item, is neither.
+    const written = await write({
+      summary: 'raised beside half a thing',
+      sender: 'a',
+      originItemId: '019ff5f5-a041-7cae-b500-fd404389867a',
+      sections: [{ kind: 'report', body: { text: 'x' } }],
+    });
+
+    expect(written.status).toBeGreaterThanOrEqual(400);
   });
 
   it('says so when there is no such item', async () => {

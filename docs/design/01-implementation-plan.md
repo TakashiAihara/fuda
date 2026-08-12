@@ -94,6 +94,8 @@ Deletion is a sweep in the same worker that batches notifications: anything olde
 
 `kind` and `reply_form` are `text` with a check constraint, not a PostgreSQL enum. The requirements call reply forms extensible, and altering a check constraint is a migration; altering an enum in use is a fight.
 
+The check constraints do more than list valid values. `state` is checked against the machine its `reply_form` selects, so a `pickup` section cannot sit in `unanswered` — a value nothing transitions out of, and one that would make `item_list` count the wrong things. An origin is checked as a pair and carried by a composite foreign key into `sections (item_id, id)`, so half an origin, or a section belonging to some other item, is not storable.
+
 Multiple sections of the same kind in one item are allowed — two questions in one exchange happen. `DECIDE-3`.
 
 ### Section state
@@ -164,7 +166,7 @@ One set of endpoints. There is no browser half and no agent half — what an act
 
 | Method | Path                         | Effect                                                           |
 | ------ | ---------------------------- | ---------------------------------------------------------------- |
-| `GET`  | `/api/items`                 | list; filters `state`, `attribution`, `recipient`, `q`, `closed` |
+| `GET` | `/api/items` | list; filters `state`, `attribution`, `recipient` (repeatable), `q`, `closed` |
 | `GET`  | `/api/items/:id`             | item with sections                                               |
 | `POST` | `/api/items`                 | write an item, and pick up in the same operation                 |
 | `POST` | `/api/items/:id/read`        | set the read mark                                                |
@@ -254,7 +256,7 @@ One screen. List on the left, selected item on the right. React, Vite, TanStack 
 - Detail pane renders section bodies as markdown, read-only, no raw HTML
 - Choices are buttons, approval is one click plus an optional note, free text is a field, external tool is a link out plus a one-click "done"
 - Next to the reply field, a control raises a separate item. It records `origin_item_id` and `origin_section_id`, which is why those columns exist from the start
-- Filters: attribution, state and recipient, defaulting to what is waiting on the person or on nobody. Nothing else — filtering by section kind would cut items in half
+- Filters: attribution, state and recipient, defaulting to what is waiting on the person or on nobody. `recipient` repeats and an empty value means addressed to nobody — one value cannot express the default view, and asking twice would break both the ordering and the limit. Nothing else — filtering by section kind would cut items in half
 - The sender is never typed. The server stamps the person's configured identity on everything the browser sends
 - Read marks are set when the detail pane opens an item, and shown in the list
 - No routing between screens. Selection is a query parameter so a link to an item works

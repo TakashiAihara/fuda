@@ -28,8 +28,10 @@ export const SECTION_STATES = [
 ] as const;
 export type SectionState = (typeof SECTION_STATES)[number];
 
-const ANSWERING_STATES = ['unanswered', 'deferred', 'answered'] as const;
-const REQUEST_STATES = ['not_started', 'in_progress', 'done'] as const;
+/** The states a section runs through when it is answered rather than taken. */
+export const ANSWERING_STATES = ['unanswered', 'deferred', 'answered'] as const;
+/** The states a taken request runs through. */
+export const REQUEST_STATES = ['not_started', 'in_progress', 'done'] as const;
 
 /**
  * Which state machine a section runs is decided by its reply form, not by its

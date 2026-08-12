@@ -7,7 +7,8 @@ CREATE TABLE "items" (
 	"origin_section_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"read_at" timestamp with time zone,
-	"closed_at" timestamp with time zone
+	"closed_at" timestamp with time zone,
+	CONSTRAINT "items_origin_pair_check" CHECK (("items"."origin_item_id" is null) = ("items"."origin_section_id" is null))
 );
 --> statement-breakpoint
 CREATE TABLE "sections" (
@@ -27,14 +28,19 @@ CREATE TABLE "sections" (
 	"claimed_at" timestamp with time zone,
 	"notified_at" timestamp with time zone,
 	"reminded_at" timestamp with time zone,
+	CONSTRAINT "sections_item_id_id_key" UNIQUE("item_id","id"),
 	CONSTRAINT "sections_kind_check" CHECK ("sections"."kind" in ('report', 'notice', 'question', 'request')),
 	CONSTRAINT "sections_reply_form_check" CHECK ("sections"."reply_form" is null or "sections"."reply_form" in ('free_text', 'choice', 'approval', 'external_tool', 'pickup')),
-	CONSTRAINT "sections_state_check" CHECK ("sections"."state" is null or "sections"."state" in ('unanswered', 'deferred', 'answered', 'not_started', 'in_progress', 'done')),
+	CONSTRAINT "sections_state_check" CHECK (
+        "sections"."state" is null
+        or ("sections"."reply_form" = 'pickup' and "sections"."state" in ('not_started', 'in_progress', 'done'))
+        or ("sections"."reply_form" <> 'pickup' and "sections"."state" in ('unanswered', 'deferred', 'answered'))
+      ),
 	CONSTRAINT "sections_state_matches_reply_form_check" CHECK (("sections"."reply_form" is null) = ("sections"."state" is null)),
 	CONSTRAINT "sections_unanswered_since_check" CHECK ("sections"."state" <> 'unanswered' or "sections"."unanswered_since" is not null)
 );
 --> statement-breakpoint
-ALTER TABLE "items" ADD CONSTRAINT "items_origin_item_id_items_id_fk" FOREIGN KEY ("origin_item_id") REFERENCES "public"."items"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "items" ADD CONSTRAINT "items_origin_fk" FOREIGN KEY ("origin_item_id","origin_section_id") REFERENCES "public"."sections"("item_id","id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sections" ADD CONSTRAINT "sections_item_id_items_id_fk" FOREIGN KEY ("item_id") REFERENCES "public"."items"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "items_attribution_idx" ON "items" USING gin ("attribution");--> statement-breakpoint
 CREATE INDEX "items_sender_idx" ON "items" USING btree ("sender");--> statement-breakpoint

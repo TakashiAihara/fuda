@@ -1,5 +1,5 @@
 {
-  "id": "b6fb1aec-90c9-4cac-b3f8-5f381b19acad",
+  "id": "8df952d4-f740-49fc-b60d-df9452326054",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -99,14 +99,16 @@
         }
       },
       "foreignKeys": {
-        "items_origin_item_id_items_id_fk": {
-          "name": "items_origin_item_id_items_id_fk",
+        "items_origin_fk": {
+          "name": "items_origin_fk",
           "tableFrom": "items",
-          "tableTo": "items",
+          "tableTo": "sections",
           "columnsFrom": [
-            "origin_item_id"
+            "origin_item_id",
+            "origin_section_id"
           ],
           "columnsTo": [
+            "item_id",
             "id"
           ],
           "onDelete": "set null",
@@ -116,7 +118,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "items_origin_pair_check": {
+          "name": "items_origin_pair_check",
+          "value": "(\"items\".\"origin_item_id\" is null) = (\"items\".\"origin_section_id\" is null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.sections": {
@@ -284,7 +291,16 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "sections_item_id_id_key": {
+          "name": "sections_item_id_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "item_id",
+            "id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "sections_kind_check": {
@@ -297,7 +313,7 @@
         },
         "sections_state_check": {
           "name": "sections_state_check",
-          "value": "\"sections\".\"state\" is null or \"sections\".\"state\" in ('unanswered', 'deferred', 'answered', 'not_started', 'in_progress', 'done')"
+          "value": "\n        \"sections\".\"state\" is null\n        or (\"sections\".\"reply_form\" = 'pickup' and \"sections\".\"state\" in ('not_started', 'in_progress', 'done'))\n        or (\"sections\".\"reply_form\" <> 'pickup' and \"sections\".\"state\" in ('unanswered', 'deferred', 'answered'))\n      "
         },
         "sections_state_matches_reply_form_check": {
           "name": "sections_state_matches_reply_form_check",

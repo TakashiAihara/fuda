@@ -11,8 +11,15 @@ export type ListedItem = typeof itemList.$inferSelect;
 export type ListQuery = {
   /** Labels every returned item must carry. Matched with `@>`. */
   attribution?: Record<string, string> | undefined;
-  /** Absent means no filter; null asks for what is addressed to nobody. */
-  recipient?: string | null | undefined;
+  /**
+   * Absent means no filter. A list narrows to items holding a section
+   * addressed to any of them, where `null` stands for addressed to nobody.
+   *
+   * A list rather than one value because the view that matters most — the
+   * person's — is "waiting on me or on nobody", and one value cannot say it.
+   * Splitting it into two queries would break both the ordering and the limit.
+   */
+  recipients?: readonly (string | null)[] | undefined;
   state?: 'unanswered' | 'open' | 'all' | undefined;
   closed?: boolean | undefined;
   limit?: number | undefined;
@@ -116,17 +123,24 @@ export function createItemRepository(database: Database) {
         conditions.push(sql`${itemList.attribution} @> ${JSON.stringify(query.attribution)}::jsonb`);
       }
 
-      if (query.recipient !== undefined) {
+      if (query.recipients !== undefined && query.recipients.length > 0) {
         // A recipient filter is about the sections, so it reaches back into
-        // them. Null means "addressed to nobody", which is not the same as the
-        // filter being absent.
-        const matches =
-          query.recipient === null
-            ? sql`${sections.recipient} is null`
-            : sql`${sections.recipient} = ${query.recipient}`;
+        // them. One condition, so ordering and the limit stay on the outer
+        // query where they belong.
+        const named = query.recipients.filter((r): r is string => r !== null);
+        const wantsUnaddressed = query.recipients.includes(null);
+
+        const alternatives = [
+          ...(named.length > 0 ? [sql`${sections.recipient} in ${named}`] : []),
+          ...(wantsUnaddressed ? [sql`${sections.recipient} is null`] : []),
+        ];
 
         conditions.push(
-          sql`exists (select 1 from ${sections} where ${sections.itemId} = ${itemList.id} and ${matches})`,
+          sql`exists (
+            select 1 from ${sections}
+            where ${sections.itemId} = ${itemList.id}
+              and (${sql.join(alternatives, sql` or `)})
+          )`,
         );
       }
 
