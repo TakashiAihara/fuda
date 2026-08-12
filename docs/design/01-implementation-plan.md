@@ -1,10 +1,10 @@
 # fuda implementation design
 
-Status: proposal, awaiting approval. Nothing here is implemented.
+Status: approved 2026-08-11. Step 1 of the delivery plan is built; steps 2 to 8 are not. Section 11 says which is which, and it is the thing to update as steps land.
 
 Scope: how `docs/requirements.md` becomes running code. The requirements are settled and are not revisited. Where the requirements are silent, this document proposes an answer and marks it, so the decision is visible rather than buried in code.
 
-Everything marked `DECIDE-n` needs an answer before implementation starts. They are collected in "Decisions to confirm" at the end, each with options and a recommendation.
+Everything marked `DECIDE-n` was open when this was written. All nine are settled; section 12 records each outcome and the reasoning, including for the one that went against its own recommendation.
 
 ## 1. Shape of the system
 
@@ -303,7 +303,7 @@ Each step leaves the tree working and is one draft PR.
 
 | #   | Contents                                                                                                                                                                         | Working means                                                |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| 1   | Workspace, TypeScript, lint, `compose.yaml`, PostgreSQL, migration runner, `docs/glossary.md`, CI                                                                                | `docker compose up` is healthy                               |
+| 1 ✅ | Workspace, TypeScript, lint, `compose.yaml`, PostgreSQL, migration runner, `docs/glossary.md`, CI                                                                                | `docker compose up` is healthy                               |
 | 2   | core schemas and state machines, tables, repository, `POST`/`GET` items                                                                                                          | an item round-trips through the API, with tests              |
 | 3   | `fuda write`, `list`, `show`                                                                                                                                                     | the agent can store and read items                           |
 | 4   | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE                                                                                                   | the loop closes without the terminal                         |
@@ -311,6 +311,8 @@ Each step leaves the tree working and is one draft PR.
 | 6   | Pickup: claim on write, `--if-stale`, progress, finish, stale return. Agent-side answering: `reply`, `defer`, `resume`, `withdraw`, refused when the sender is not the recipient | requests flow both ways, and agent to agent works end to end |
 | 7   | Notifications: batching, one reminder, `none` and `webhook` targets                                                                                                              | new unanswered items announce themselves                     |
 | 8   | Search over closed items, README and configuration reference                                                                                                                     | publishable                                                  |
+
+Step 1 is built and on `main`. What it leaves standing: `docker compose up` brings up PostgreSQL and a server that migrates itself and answers `/health`, with the checks in section 10 running in CI.
 
 Step 4 is where fuda first does its job. Steps 1 to 3 are the shortest path to it.
 

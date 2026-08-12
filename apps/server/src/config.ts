@@ -6,7 +6,27 @@ import { z } from 'zod';
  * the connection itself is the one thing the operator must supply.
  */
 const schema = z.object({
-  FUDA_DATABASE_URL: z.string().min(1),
+  // Parsed and checked for scheme, not just non-empty, so a connection string
+  // mangled by assembling it from separate values is refused at startup rather
+  // than surfacing later as an authentication failure pointing at the wrong
+  // thing.
+  //
+  // This catches less than it looks. A password containing / or # makes the URL
+  // unparseable and is caught; a password containing @ does not — it parses,
+  // silently, to a different host. `postgres://fuda:p@ss/word@db:5432/fuda`
+  // reads as host `ss`, and nothing here can tell that apart from someone who
+  // meant host `ss`. The only real defence is not assembling URLs from parts,
+  // which is why compose takes FUDA_DATABASE_URL whole.
+  FUDA_DATABASE_URL: z
+    .string()
+    .min(1)
+    .refine(
+      (value) => {
+        const url = URL.parse(value);
+        return url !== null && (url.protocol === 'postgres:' || url.protocol === 'postgresql:');
+      },
+      { message: 'is not a postgres:// URL. Percent-encode anything special in the password' },
+    ),
   FUDA_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   FUDA_BASE_URL: z.url().default('http://localhost:8787'),
   // What the server stamps on anything the browser sends. A sender is required

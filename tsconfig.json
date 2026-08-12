@@ -1,5 +1,6 @@
 {
-  "extends": ["@tsconfig/strictest/tsconfig.json", "@tsconfig/bun/tsconfig.json"],
+  "//": "strictest comes last on purpose. @tsconfig/bun sets noUnusedLocals, noUnusedParameters and noPropertyAccessFromIndexSignature to false, and extends applies left to right, so putting it second silently turns those three checks off.",
+  "extends": ["@tsconfig/bun/tsconfig.json", "@tsconfig/strictest/tsconfig.json"],
   "compilerOptions": {
     "noEmit": true,
     "types": ["bun"]

@@ -2,9 +2,21 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type Database } from './client.ts';
 import { runMigrations } from './migrate.ts';
 
-// Real PostgreSQL, driven the way the server drives it. FUDA_DATABASE_URL is
-// supplied by whoever runs the integration suite; compose and CI both do.
-const url = process.env['FUDA_DATABASE_URL'];
+// Real PostgreSQL, driven the way the server drives it.
+//
+// Deliberately not FUDA_DATABASE_URL. This suite drops the public schema, and a
+// developer with FUDA_DATABASE_URL exported at their own fuda would lose it by
+// running the tests. A separate variable makes destroying the database an
+// explicit choice; the guard below makes reusing the real one impossible even
+// when both are set to the same thing by accident.
+const url = process.env['FUDA_TEST_DATABASE_URL'];
+
+if (url !== undefined && url === process.env['FUDA_DATABASE_URL']) {
+  throw new Error(
+    'FUDA_TEST_DATABASE_URL is the same database as FUDA_DATABASE_URL. ' +
+      'This suite drops the public schema; point it somewhere disposable.',
+  );
+}
 
 describe.skipIf(!url)('migrations', () => {
   let database: Database;

@@ -35,6 +35,32 @@ describe('loadConfig', () => {
     expect(() => loadConfig({})).toThrow(ConfigError);
   });
 
+  it.each([
+    ['unparseable', 'postgres://fuda:pa/ss@db:5432/fuda'],
+    ['fragment in the password', 'postgres://fuda:pass#x@db:5432/fuda'],
+    ['not a url at all', 'the database'],
+    ['the wrong scheme', 'mysql://fuda:fuda@db:3306/fuda'],
+  ])('refuses a database url with %s', (_, value) => {
+    expect(() => loadConfig({ FUDA_DATABASE_URL: value })).toThrow(ConfigError);
+  });
+
+  it('accepts a password whose special characters are percent-encoded', () => {
+    const encoded = 'postgres://fuda:p%40ss%2Fword@db:5432/fuda';
+
+    expect(loadConfig({ FUDA_DATABASE_URL: encoded }).databaseUrl).toBe(encoded);
+  });
+
+  it('cannot catch an unencoded @ in a password, and does not pretend to', () => {
+    // This parses, silently, to host `ss` — not to `db`. Nothing here can tell
+    // that apart from someone who meant host `ss`, so the defence is compose
+    // taking FUDA_DATABASE_URL whole rather than assembling it from parts.
+    // Recorded as a test so the limit is visible instead of assumed away.
+    const mangled = 'postgres://fuda:p@ss/word@db:5432/fuda';
+
+    expect(loadConfig({ FUDA_DATABASE_URL: mangled }).databaseUrl).toBe(mangled);
+    expect(URL.parse(mangled)?.hostname).toBe('ss');
+  });
+
   it('reports every problem at once, not just the first', () => {
     try {
       loadConfig({ FUDA_PORT: 'http', FUDA_BASE_URL: 'not a url' });

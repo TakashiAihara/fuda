@@ -50,7 +50,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test:integration
         env:
-          FUDA_DATABASE_URL: postgres://fuda:fuda@localhost:5432/fuda
+          FUDA_TEST_DATABASE_URL: postgres://fuda:fuda@localhost:5432/fuda
 
   compose:
     name: docker compose up is healthy

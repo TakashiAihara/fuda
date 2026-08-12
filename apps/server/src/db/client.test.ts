@@ -23,6 +23,16 @@ describe('succeedsWithin', () => {
     expect(performance.now() - started).toBeLessThan(1_000);
   });
 
+  it('is false when the attempt throws before returning a promise', async () => {
+    // A synchronous throw escaping this function would make the health route
+    // answer 500, which is exactly the answer it exists to avoid giving.
+    const result = await succeedsWithin(() => {
+      throw new Error('the pool is closed');
+    }, 1_000);
+
+    expect(result).toBe(false);
+  });
+
   it('does not hold the process open after a fast success', async () => {
     // The timer has to be cleared, or a 2 second deadline keeps the event loop
     // alive for 2 seconds after every probe.
