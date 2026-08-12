@@ -152,6 +152,8 @@ Drizzle. The tables above are declared in TypeScript, `drizzle-kit generate` dif
 
 Row types come from the schema declaration, so the repository layer is typed against the database instead of against hand-written row types that drift from it silently.
 
+Migrations are forward-only once released. Regenerating one that has already been applied changes its hash, and the next start tries to run it again — `42P07`, duplicate table, on a database that was perfectly fine. It happened here while the schema was still being shaped and nothing had shipped, so the fix was to recreate the development database; after release the fix would be a new migration and never an edited one.
+
 Measured rather than assumed, now that the schema exists: drizzle-kit generates the check constraints, the view, the GIN index on `attribution`, and the foreign keys. The one thing it does not generate is `create extension`, so `0000_extensions.sql` installing pg_trgm stays hand-written.
 
 Claim paths use `update … where … returning` and `select … for update skip locked`, both expressible directly, and anything awkward drops to `sql`.
