@@ -45,6 +45,7 @@ PostgreSQL. Settled axes are columns; section bodies and overflow are JSONB, per
 |---|---|---|
 | `id` | uuid v7 | time-ordered, so the primary key sorts by creation |
 | `summary` | text | one line, shown in the list — `DECIDE-2` |
+| `sender` | text | who wrote it. Required. Never verified |
 | `attribution` | jsonb | arbitrary labels, e.g. `{"session":"…","repository":"fuda","branch":"main"}` |
 | `origin_item_id` | uuid null | the item this was raised from |
 | `origin_section_id` | uuid null | the section this was raised from |
@@ -68,7 +69,8 @@ PostgreSQL. Settled axes are columns; section bodies and overflow are JSONB, per
 | `unanswered_since` | timestamptz null | when it became unanswered — the list orders by this |
 | `settled_at` | timestamptz null | when it reached answered or done |
 | `reply` | jsonb null | the answer |
-| `target` | text null | optional target of a request |
+| `answered_by` | text null | who replied. Required whenever `reply` is present |
+| `recipient` | text null | who owes the answer. Null means anyone |
 | `claimed_by` | text null | the session that picked it up |
 | `claimed_at` | timestamptz null | |
 | `progress_at` | timestamptz null | last movement; a stale one returns to not started |
@@ -97,7 +99,9 @@ reply_form = null
     state is null. Nothing is owed
 ```
 
-The agent never writes `answered` and never sets `closed_at`. This is enforced at the API layer: the endpoints that produce those transitions are the person's endpoints, and the CLI and MCP do not call them.
+Who may advance a section follows its `recipient`, not what kind of actor is asking. A reply is refused unless its sender equals the recipient, or the recipient is null. `closed_at` is set by the person, or by the item's `sender` withdrawing what it raised.
+
+None of this is authentication. The sender arrives as a claim and is compared, not checked, which stops an agent from settling what is waiting on the person by accident but not on purpose. There is nothing to check it against — the same would be true if the browser were the only entrance.
 
 ### Derived item state
 
@@ -142,32 +146,26 @@ Everything else this schema needs is generated: the `item_list` view, the GIN in
 
 JSON over HTTP. Everything the agent needs and everything the browser needs, no split. No authentication — out of scope by the requirements.
 
-Person's endpoints (the browser calls these):
+One set of endpoints. There is no browser half and no agent half — what an actor may do follows the recipient of the section it is acting on, so the same endpoint serves both.
 
 | Method | Path | Effect |
 |---|---|---|
-| `GET` | `/api/items` | list; filters `state`, `attribution`, `q`, `closed` |
+| `GET` | `/api/items` | list; filters `state`, `attribution`, `recipient`, `q`, `closed` |
 | `GET` | `/api/items/:id` | item with sections |
+| `POST` | `/api/items` | write an item, and pick up in the same operation |
 | `POST` | `/api/items/:id/read` | set the read mark |
 | `POST` | `/api/items/:id/close` | set the closed flag |
-| `POST` | `/api/sections/:id/reply` | answer; body depends on reply form |
+| `POST` | `/api/sections/:id/reply` | answer; body depends on the reply form |
 | `POST` | `/api/sections/:id/defer` | postpone |
 | `POST` | `/api/sections/:id/resume` | un-postpone |
-| `GET` | `/api/events` | SSE; one event per change, so the open browser stays current |
-
-Agent's endpoints (cli and mcp call these):
-
-| Method | Path | Effect |
-|---|---|---|
-| `POST` | `/api/items` | write an item, and pick up in the same operation |
-| `GET` | `/api/items`, `/api/items/:id` | shared with the person |
 | `POST` | `/api/pickup` | pick up without writing — the minimum-interval path |
 | `POST` | `/api/sections/:id/progress` | movement, so the request is not treated as stalled |
 | `POST` | `/api/sections/:id/finish` | request done |
+| `GET` | `/api/events` | SSE; one event per change, so an open browser stays current |
 
-`POST /api/items` responds with the created item and `picked_up`: the request sections claimed by this write. The requirements make the write the definition of a break, and the write and the pickup one operation.
+Every write carries a `sender`. The browser omits it and the server fills in the person's configured identity; an agent supplies its own. `reply`, `defer` and `resume` are refused when the sender is neither the section's recipient nor is the recipient null. `close` is refused unless the sender is the person or the item's own sender.
 
-Both endpoints that claim take the session identity from the request body, matching what the agent puts in `attribution`.
+`POST /api/items` responds with the created item and `picked_up`: the request sections claimed by this write. The requirements make a write the definition of a break, and the write and the pickup one operation.
 
 The web bundle is served from `/` by the same server. One origin, no CORS, one port to publish in compose.
 
@@ -176,28 +174,35 @@ The web bundle is served from `/` by the same server. One origin, no CORS, one p
 One binary, `fuda`. It is also the MCP server — `fuda mcp` speaks stdio MCP. One artifact to install, one place where the operations are defined. `DECIDE-6`.
 
 ```
-fuda write [--file item.json | -]   write an item; prints picked-up requests
-fuda list [--state …] [--attribution k=v] [--search …]
+fuda write [--file item.json | -]      write an item; prints picked-up requests
+fuda list [--state …] [--attribution k=v] [--recipient …] [--search …]
 fuda show <id>
-fuda pickup [--if-stale] [--target …]  pick up without writing
+fuda reply <section-id> [--file reply.json | -]   answer what is addressed to me
+fuda defer <section-id>                postpone what is addressed to me
+fuda resume <section-id>               un-postpone it
+fuda withdraw <item-id>                close an item I raised
+fuda pickup [--if-stale] [--recipient …]   pick up without writing
 fuda progress <section-id>
 fuda finish <section-id> [--file report.json]
-fuda mcp                            serve MCP over stdio
+fuda mcp                               serve MCP over stdio
 ```
+
+The sender comes from configuration, so it is not typed on every invocation and cannot be forgotten. `reply`, `defer` and `resume` reach only sections addressed to that sender or to nobody; the server refuses the rest, and the CLI reports the refusal rather than swallowing it.
 
 Item input is JSON on stdin or in a file. Section bodies are markdown and can be long; flags are the wrong shape for that.
 
 ```json
 {
   "summary": "v3 migration: two questions before I continue",
+  "sender": "session:01K6Ss…",
   "attribution": { "session": "01K6Ss…", "repository": "fuda", "branch": "main" },
   "sections": [
     { "kind": "report", "body": { "text": "Moved the reader…" } },
-    { "kind": "question", "reply_form": "choice",
+    { "kind": "question", "reply_form": "choice", "recipient": "person",
       "body": { "text": "Which name?", "options": [
         { "value": "a", "label": "pickup" }, { "value": "b", "label": "claim" } ] } },
-    { "kind": "request", "reply_form": "pickup",
-      "body": { "text": "Check the other file too" }, "target": null }
+    { "kind": "request", "reply_form": "pickup", "recipient": null,
+      "body": { "text": "Check the other file too" } }
   ]
 }
 ```
@@ -206,13 +211,13 @@ Item input is JSON on stdin or in a file. Section bodies are markdown and can be
 
 What calls `fuda pickup --if-stale` periodically is outside the tool: in Claude Code a hook does it, elsewhere something else does. fuda does not depend on any of them. `DECIDE-7`.
 
-There is no `fuda reply`, no `fuda close`, and no `fuda defer`. Those transitions belong to the person, and leaving them out of the agent's tool is the enforcement.
+There is no `fuda close` for someone else's item. Withdrawal reaches only what this sender raised, which is the whole of an agent's business with the closed flag.
 
 ## 5. MCP
 
-The same operations, named the same, as tools: `fuda_write`, `fuda_list`, `fuda_show`, `fuda_pickup`, `fuda_progress`, `fuda_finish`. Arguments are the JSON above, which is what MCP wants anyway. Tool descriptions state that answering and closing are not available and why.
+The same operations, named the same, as tools: `fuda_write`, `fuda_list`, `fuda_show`, `fuda_reply`, `fuda_defer`, `fuda_resume`, `fuda_withdraw`, `fuda_pickup`, `fuda_progress`, `fuda_finish`. Arguments are the JSON above, which is what MCP wants anyway. Tool descriptions say that a reply reaches only what is addressed to this sender, so the model does not discover it by being refused.
 
-Configuration is one environment variable, the server URL.
+Configuration is two environment variables: the server URL and the sender.
 
 ## 6. Web
 
@@ -221,7 +226,8 @@ One screen. List on the left, selected item on the right. React, Vite, TanStack 
 - Detail pane renders section bodies as markdown, read-only, no raw HTML
 - Choices are buttons, approval is one click plus an optional note, free text is a field, external tool is a link out plus a one-click "done"
 - Next to the reply field, a control raises a separate item. It records `origin_item_id` and `origin_section_id`, which is why those columns exist from the start
-- Filters: attribution and state. Nothing else — filtering by section kind would cut items in half
+- Filters: attribution, state and recipient, defaulting to what is waiting on the person or on nobody. Nothing else — filtering by section kind would cut items in half
+- The sender is never typed. The server stamps the person's configured identity on everything the browser sends
 - Read marks are set when the detail pane opens an item, and shown in the list
 - No routing between screens. Selection is a query parameter so a link to an item works
 
@@ -231,7 +237,7 @@ The list does not rank or suggest. Ordering and filters are the whole feature.
 
 A worker inside the server, on a timer.
 
-1. Find sections that became unanswered and have `notified_at` null. If any, compose one message for the batch, deliver it, stamp them. The window is configuration
+1. Find sections that became unanswered, whose recipient is the person or is null, and have `notified_at` null. If any, compose one message for the batch, deliver it, stamp them. The window is configuration. What is addressed to an agent is never pushed — an agent pulls at a break
 2. Find sections unanswered longer than the reminder threshold with `reminded_at` null and state not `deferred`. Send one reminder, stamp them. At most one, ever
 3. Nothing fires for reply-free reports and notices, or for a finished request. A finished request appears as a report
 
@@ -241,7 +247,7 @@ Message content is configurable: `count` (a count and a link, the default, becau
 
 ## 8. Pickup and stalling
 
-- A write claims: untargeted requests, plus requests targeted at this session. `not_started` only. A single `UPDATE … WHERE state = 'not_started' … RETURNING`, so two sessions cannot take the same one
+- A write claims: unaddressed requests, plus requests addressed to this sender. `not_started` only. A single `UPDATE … WHERE state = 'not_started' … RETURNING`, so two sessions cannot take the same one
 - The claim records `claimed_by` and `claimed_at` and sets `progress_at`
 - `POST /api/sections/:id/progress` moves `progress_at`. The agent calls it while working
 - The worker returns `in_progress` sections whose `progress_at` is older than the stale threshold to `not_started`, clearing `claimed_by`. Configuration, default measured in tens of minutes
@@ -256,6 +262,7 @@ Environment variables, all with defaults except the database URL. Nothing assume
 | `FUDA_DATABASE_URL` | — | required |
 | `FUDA_PORT` | `8787` | server port |
 | `FUDA_BASE_URL` | `http://localhost:8787` | the link put in notifications |
+| `FUDA_PERSON_IDENTITY` | `person` | what the server stamps on anything the browser sends. An authenticated username later |
 | `FUDA_NOTIFY_TARGET` | `none` | `none` \| `webhook` |
 | `FUDA_NOTIFY_WEBHOOK_URL` | — | required when target is webhook |
 | `FUDA_NOTIFY_CONTENT` | `count` | `count` \| `summary` |
@@ -264,6 +271,7 @@ Environment variables, all with defaults except the database URL. Nothing assume
 | `FUDA_PICKUP_MIN_INTERVAL` | `30m` | `--if-stale` threshold |
 | `FUDA_PICKUP_STALE_AFTER` | `30m` | returns in-progress to not started |
 | `FUDA_URL` | `http://localhost:8787` | the cli and mcp side |
+| `FUDA_SENDER` | — | required by the cli and mcp. Who this agent is |
 
 `compose.yaml` starts PostgreSQL with a named volume and the server, and publishes one port. `docker compose up` is the whole installation.
 
@@ -287,7 +295,7 @@ Each step leaves the tree working and is one draft PR.
 | 3 | `fuda write`, `list`, `show` | the agent can store and read items |
 | 4 | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE | the loop closes without the terminal |
 | 5 | `fuda mcp` | agents on MCP have the same reach |
-| 6 | Pickup: claim on write, `--if-stale`, progress, finish, stale return | requests flow both ways |
+| 6 | Pickup: claim on write, `--if-stale`, progress, finish, stale return. Agent-side answering: `reply`, `defer`, `resume`, `withdraw`, refused when the sender is not the recipient | requests flow both ways, and agent to agent works end to end |
 | 7 | Notifications: batching, one reminder, `none` and `webhook` targets | new unanswered items announce themselves |
 | 8 | Search over closed items, README and configuration reference | publishable |
 
@@ -375,7 +383,7 @@ The requirements set the rule and not the trigger. fuda cannot wake an agent up.
 
 ## 13. Names to approve
 
-Names taken from the requirements and used unchanged: item, section, report, notice, question, request, reply form, free text, choice, approval, external tool, pickup, attribution, target, deferred, closed.
+Names taken from the requirements and used unchanged: item, section, report, notice, question, request, reply form, free text, choice, approval, external tool, pickup, attribution, sender, recipient, withdraw, deferred, closed.
 
 Names introduced here, needing approval:
 
@@ -386,8 +394,19 @@ Names introduced here, needing approval:
 | `claimed_by`, `claimed_at` | sections | which session picked a request up, and when |
 | `progress_at` | sections | last movement; the stale check reads it |
 | `unanswered_since` | sections | the requirements' "time a section became unanswered" |
+| `answered_by` | sections | who replied. Present whenever a reply is |
 | `origin_item_id`, `origin_section_id` | items | the requirements' "which item and section it was raised from" |
 | `finish` | cli, api | the agent declaring a request done |
 | `progress` | cli, api | the agent reporting movement |
 
-`docs/glossary.md` lands in step 1 and carries these, along with the words that collide and must never be used bare: *target* (a request's target versus a notification target), *state* (a section's versus an item's derived one), *report* (a section kind versus the completion of a request), *session* (the agent's versus anything HTTP), *request* (a section kind versus an HTTP request).
+`docs/glossary.md` lands in step 1 and carries these, along with the words that collide and must never be used bare: *state* (a section's versus an item's derived one), *report* (a section kind versus the completion of a request), *session* (the agent's versus anything HTTP), *request* (a section kind versus an HTTP request), *done* (a request's state versus finishing anything at all), *open* (an unsettled item versus opening a link).
+
+One collision was removed rather than documented. A request's `target` and a notification's target were the same word for different things; renaming the first to `recipient` leaves *target* meaning a notification's destination and nothing else.
+
+## 14. Amendment, 2026-08-12
+
+The requirements gained a direction model after this plan was written, and the plan above already reflects it. In short: a `sender` is required on everything written, a `recipient` is optional on every section, both come from one set of identities, and who may advance a section follows its recipient rather than what kind of actor is acting. Agent to agent falls out of that with no special case.
+
+What changed here as a result: `sender` and `answered_by` on the schema, `target` renamed to `recipient`, one set of endpoints instead of a person's half and an agent's half, `reply` / `defer` / `resume` / `withdraw` in the CLI and MCP, notifications restricted to what waits on the person or on nobody, `recipient` added to the filters, and `FUDA_PERSON_IDENTITY` and `FUDA_SENDER` in the configuration.
+
+The sender is recorded and never verified. Comparing it to the recipient stops accidents, not impersonation, and no arrangement of entrances would change that while there is nothing to check a name against.

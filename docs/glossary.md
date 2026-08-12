@@ -16,13 +16,14 @@ These have two plausible meanings. Never write them bare.
 
 | Word | The two meanings | Rule |
 |---|---|---|
-| target | the **request target** (`sections.target`), and the **notification target** (`FUDA_NOTIFY_TARGET`) | always qualify. Bare "target" is a bug report waiting to happen |
 | state | a **section's state** (`sections.state`), and an **item's state**, which is derived and stored nowhere | say "section state" or "item state (derived)" |
 | report | the **section kind** `report`, and the completion of a request, which *appears as* a report | the kind is `report`. In prose about a finished request, say "completion report" |
 | request | the **section kind** `request`, and an HTTP request | say "request section" or "HTTP request" |
 | session | the **agent's session**, recorded in `items.attribution` and `sections.claimed_by` | fuda has no logins and no HTTP sessions, so the word is reserved for the agent's |
 | done | the **request state** `done` | only requests are done. A reply-form section is *answered*; an item is *closed* |
 | open | an **item that is not settled**, and opening a link | say "open item" |
+
+One collision used to be here and was removed instead of documented. A request's target and a notification's target were one word for two things; the first became the **recipient**, so *target* now means a notification's destination and nothing else. Renaming beats a rule nobody remembers at the point of writing.
 
 ## The words
 
@@ -51,6 +52,19 @@ The four values of `sections.kind`. A section is exactly one of them, and an ite
 | request | work handed over. Carries the `pickup` reply form when it is meant to be taken |
 
 Nothing in the schema stops a kind from carrying any reply form. Some combinations do not occur in practice; encoding the prohibition would only push a workaround when the exception shows up.
+
+### Direction
+
+Who wrote a thing, and who owes an answer for it. One set of identities covers both, so person to agent, agent to person and agent to agent are the same mechanism.
+
+| Word | Where it exists | Meaning |
+|---|---|---|
+| identity | `items.sender`, `sections.recipient` and friends | a name that means the person, or means one agent. There is exactly one person, since multi-tenancy is out of scope |
+| sender | `items.sender`, `sections.answered_by`, `sections.claimed_by` | who wrote, replied or took. Required. An agent names itself; the browser has it filled in |
+| recipient | `sections.recipient` | who owes the answer. Optional, and absent means anyone — which is what lets an untargeted request be taken by whoever reaches it first |
+| withdraw | `items.closed_at`, set by the item's sender | closing what you raised yourself, because you found the answer. The same flag the person sets; only who set it differs |
+
+A sender is **recorded, never verified**. There are no logins, so it is a claim. Comparing it against the recipient prevents accidents, not impersonation, and nothing about having fewer entrances would change that — a browser has no name to check either.
 
 ### Answering
 
@@ -90,7 +104,6 @@ The values of `sections.reply_form`. The list is meant to grow, which is why it 
 |---|---|---|
 | pickup | `sections.reply_form` value | the reply form meaning "take this and start". The name of the form |
 | claim | `sections.claimed_by`, `sections.claimed_at` | the act of taking a request, and who took it. Not a reply form — do not use it as one |
-| request target | `sections.target` | who a request is for. Absent means anyone may take it |
 | not started / in progress / done | `sections.state` | the request's states |
 | progress | `sections.progress_at` | the last sign of movement. Used to tell a live request from an abandoned one |
 | stale | derived from `progress_at` | in progress with no movement for long enough. A stale request returns to `not started` |
@@ -104,6 +117,8 @@ The values of `sections.reply_form`. The list is meant to grow, which is why it 
 | attribution | `items.attribution` | where an item came from, as arbitrary labels. Not fixed columns: one agent supplies a session, a repository and a branch, another supplies whatever identifies it |
 
 Attribution is the join key to anything outside fuda. Whatever identifies a machine, a directory or a session elsewhere can be put in here as a label, and fuda stays ignorant of what it means.
+
+The **sender is not one of these labels**. It is required and single, which a set of optional labels cannot express, and it is one half of a pair whose other half is the recipient. Attribution keeps its own job: filtering, and joining outwards.
 
 ### The screen
 
@@ -121,7 +136,9 @@ Attribution is the join key to anything outside fuda. Whatever identifies a mach
 | notification | `sections.notified_at` | fired when something new becomes unanswered. Never for a reply-free section, never for a finished request |
 | batch | `FUDA_NOTIFY_BATCH_WINDOW` | one message for everything that became unanswered inside a window |
 | reminder | `sections.reminded_at` | one, at most, ever, for a long-unanswered section. Never for a deferred one |
-| notification target | `FUDA_NOTIFY_TARGET` | where a notification is delivered. Pluggable, and unrelated to a request target |
+| notification target | `FUDA_NOTIFY_TARGET` | where a notification is delivered. Pluggable. The only thing *target* means |
+
+Only what is waiting on the person, or on nobody, is announced. Whatever is addressed to an agent is pulled at a break and never pushed.
 
 ### Leaving
 

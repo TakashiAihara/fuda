@@ -40,8 +40,18 @@ Combinations are not restricted by the schema. Some combinations do not occur in
 
 ## Direction and pickup
 
-- Agent to person: decisions, questions, choices. The agent cannot proceed until answered
-- Person to agent: requests. Not delivered as an interruption. The agent picks them up at a break
+Every item records who wrote it, and every section may record who it is for. Both are drawn from one set of identities: the person, and whatever identifies an agent.
+
+- The sender is required on anything written, including a reply. An agent names itself; the browser has it filled in on the person's behalf
+- The recipient sits on the section and is optional. Absent means anyone
+
+Recording a sender is not authenticating one. There are no logins here, so a sender is a claim; the server compares it against the recipient to prevent accidents, not to prove anything. A fuda whose only entrance was a browser would be no different, having nothing to check a name against either.
+
+Direction is the pair, not the kind of actor involved, so agent to agent is as ordinary as the rest:
+
+- Agent to person: decisions, questions, choices. The writer cannot proceed until answered
+- Person to agent: requests. Not delivered as an interruption. Picked up at a break
+- Agent to agent: either of the above, between two sessions
 
 A break is defined as the moment the agent writes an item to fuda. Writing an item is itself the statement that a unit of work finished, so no separate definition is needed, and the write and the pickup happen in one operation.
 
@@ -58,24 +68,27 @@ State lives on sections. The item's state is derived: an item is open while any 
 - Deferred is a state of its own, not a variety of unanswered. Unanswered means the agent is waiting; deferred means the person chose to postpone. Without the distinction the agent cannot tell whether to keep waiting, and reminders cannot be suppressed for the deferred case
 - Read is not a state. Making it one leaves every reply-free report piling up as unread, which buries the things that actually need a reply. Read belongs in the list as a mark, not in the state machine
 
-State only advances through the action of the actor who owns it.
+State only advances through the action of the actor who owns it, and ownership follows the recipient rather than the kind of actor.
 
 | Transition | Advanced by | Trigger |
 |---|---|---|
-| unanswered to answered | person | replied |
-| unanswered to deferred, and back | person | postponed, resumed |
-| not started to in progress to done | agent | picked up, finished |
+| unanswered to answered | the recipient | replied |
+| unanswered to deferred, and back | the recipient | postponed, resumed |
+| not started to in progress to done | whoever took it | picked up, finished |
 | item closes (derived) | nobody | all sections settled |
-| item closes (explicit) | person | closed flag set |
+| item closes (explicit) | the person, or the sender withdrawing what they raised | closed flag set |
 
-The agent never marks something answered and never closes an item.
+Nobody settles what was addressed to someone else. An agent does not answer what is waiting on the person, and the person does not mark an agent's request done. An unaddressed section may be answered by anyone, which is what makes it unaddressed.
+
+The sender may withdraw an item it raised, because asking a question and then finding the answer yourself is ordinary, and leaving it standing wastes the recipient's attention. Withdrawal is the same closed flag; nothing else distinguishes it.
 
 ## Scope and attribution
 
 - Every item records where it came from. Attribution cannot be backfilled, so it is recorded from the start
 - Attribution is a set of arbitrary labels rather than fixed columns. A Claude Code session supplies session, repository and branch; another agent supplies whatever identifies it
+- The sender is not one of those labels. It is required and single, which a set of optional labels cannot express, and it is the counterpart of the recipient. Attribution stays what it is: the axis the list filters on and the join to anything outside
 - The default view spans everything, with attribution available as a filter
-- A request may carry an optional target. Untargeted requests may be picked up by anyone
+- Any section may carry a recipient. Unaddressed sections may be answered, or picked up, by anyone
 - Picking up records which session took it and moves the section to in progress. A request left in progress without movement returns to not started. Since the session that took it is recorded, this can stay simple
 
 ## Closing
@@ -89,6 +102,7 @@ Closed items are not deleted. Temporary retention means fuda is not the system o
 ## Notifications
 
 - Fired only when something new becomes unanswered. Reply-free reports and notices are not announced, and neither is a completed request — completion appears as a report
+- Only what is waiting on the person, or on nobody, is announced. What is addressed to an agent is pulled at a break, not pushed
 - Batched over a short window into one message. Firing per item floods when several agent sessions run in parallel
 - One reminder at most for a long-unanswered item. Deferred items are never reminded
 - How much content a notification carries is configurable. The default is a count and a link only, because the notification service may be a shared public instance
@@ -96,8 +110,8 @@ Closed items are not deleted. Temporary retention means fuda is not the system o
 
 ## Interface
 
-- The agent reads and writes through a CLI and through MCP
-- The person uses a browser. Viewing, choosing and replying all complete there
+- The agent reads, writes and replies through a CLI and through MCP. It replies only to what is addressed to it or to nobody
+- The person uses a browser. Viewing, choosing and replying all complete there, and the sender is filled in rather than typed
 
 One screen: a list on the left, the selected item on the right. Navigation between screens is itself a round trip, and round trips are what this project exists to remove.
 
@@ -105,7 +119,7 @@ One screen: a list on the left, the selected item on the right. Navigation betwe
 - Next to the reply field is a way to raise a separate item, so an unrelated thought can be captured without leaving
 - An external tool opens by link, not embedded. On return, one click marks the section answered
 
-The list puts unanswered items first, oldest first within that group, because the purpose is to stop things from being lost. Targeting does not affect ordering; a target exists to prevent two sessions from taking the same request, which is a different concern. Filters are attribution and state only. Filtering by section kind is deliberately absent — an item is a group of sections, so filtering by kind would cut items in half.
+The list puts unanswered items first, oldest first within that group, because the purpose is to stop things from being lost. Who a section is addressed to does not affect ordering; a recipient exists to say whose answer is owed and to stop two sessions from taking the same request, which is a different concern. Filters are attribution, state and recipient. The person's screen defaults to what is waiting on them or on nobody. Filtering by section kind is deliberately absent — an item is a group of sections, so filtering by kind would cut items in half.
 
 The list does not suggest what to do next. The core of this project is not losing what needs a reply, which ordering and filtering already deliver.
 
@@ -132,7 +146,7 @@ Runs from a single compose invocation. Requiring PostgreSQL is acceptable becaus
 
 ## Out of scope
 
-- Authentication and multi-tenancy. fuda is published as open source; it is not operated as a hosted service
+- Authentication and multi-tenancy. fuda is published as open source; it is not operated as a hosted service. A sender is recorded, never verified
 - Structuring free text into items automatically
 - Suggesting which item to handle next
 
@@ -143,3 +157,7 @@ Both of the latter belong to a later stage, where the agent takes a larger plann
 - Items do not share a shape. Some carry no report, no notice and no question; some are almost entirely one long section
 - The structure cannot be settled completely up front, and must remain changeable while in use
 - Nothing assumes the author's own environment. Environment-specific values are configuration
+
+## Revisions
+
+- 2026-08-12 — Direction became a pair of identities. A sender is required on everything written, a recipient is optional on every section, and both come from one set, so agent to agent needs no special case. State ownership moved from the kind of actor to the recipient; the person may still be the only one who dismisses an item, joined by a sender withdrawing what they raised. A request's `target` became a section's `recipient`, leaving `target` to mean a notification's destination and nothing else. Replying joined the CLI and MCP, which previously had no way to answer at all.
