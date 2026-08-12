@@ -61,7 +61,7 @@ Picked-up requests are not started silently. The next item the agent writes says
 
 ## State
 
-State lives on sections. The item's state is derived: an item is open while any section is unanswered. The item additionally carries a single closed flag, which wins when set — this keeps derivation as the default while still allowing an item to be dismissed with sections outstanding.
+State lives on sections. The item's state is derived: an item is open while any section is unsettled. Settled means answered, done, or carrying no reply form. Deferred is not settled — postponing is not finishing — so an item with nothing but deferred sections stays open, sits below the unanswered ones, and is never reminded about. The item additionally carries a single closed flag, which wins when set — this keeps derivation as the default while still allowing an item to be dismissed with sections outstanding.
 
 - Sections with a reply form: unanswered, answered
 - Request sections: not started, in progress, done
@@ -134,7 +134,7 @@ The interface can be changed later. What the interface requires to be recorded c
 
 ## Storage
 
-PostgreSQL with JSONB. The settled axes — section kind, state, attribution, target — are columns; section bodies and overflow are JSON.
+PostgreSQL with JSONB. The settled axes — section kind, state, sender, recipient, attribution — are columns; section bodies and overflow are JSON.
 
 The reason for not going fully schemaless: only the section bodies vary. Making the settled axes loose as well would push their consistency into the application, and the operations that matter here (returning a stalled request, preventing two sessions from taking the same one) are conditional updates over state and attribution.
 

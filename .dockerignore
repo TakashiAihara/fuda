@@ -3,6 +3,11 @@ node_modules
 **/node_modules
 docs
 *.md
-.env
-.env.local
 .github
+
+# Kept out of the image as well as out of git. COPY apps ./apps would otherwise
+# pick up an .env someone left in the tree.
+.env
+.env.*
+**/.env
+**/.env.*

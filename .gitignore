@@ -1,5 +1,8 @@
 node_modules/
 dist/
 *.tsbuildinfo
+
+# Every .env variant, with the checked-in example as the one exception.
 .env
-.env.local
+.env.*
+!.env.example
