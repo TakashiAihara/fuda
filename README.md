@@ -16,7 +16,7 @@ fuda gives them somewhere to live. The agent writes them; you read and answer th
 
 ## Status
 
-Early. The specification is settled and the skeleton stands up: `docker compose up` starts PostgreSQL and a server that migrates itself and answers `/health`. Items, the CLI, the browser screen and MCP are not built yet.
+Early. An agent can write exchanges and read them back, through an HTTP API and through the `fuda` command. The browser screen, activity, pickup, MCP and notifications are not built yet.
 
 - `docs/requirements.md` — what fuda is, decided
 - `docs/design/01-implementation-plan.md` — how it gets built, and what is done so far
@@ -29,6 +29,17 @@ docker compose up
 ```
 
 That is the whole installation. PostgreSQL comes with it, migrations run on start, and the server is at <http://localhost:8787>.
+
+An agent writes and reads through the command:
+
+```bash
+export FUDA_SENDER=session:01K6Ss     # who is writing. Required
+fuda write < exchange.json            # or pipe it in
+fuda list                             # waiting first, oldest first
+fuda show <id>
+```
+
+There is no `fuda reply`, and that is the point: a section is answered by whoever it is addressed to, and most of them are addressed to you.
 
 Nothing assumes a particular host or platform. Every value is configuration, and `.env.example` lists them; only the database connection has no default.
 

@@ -1,0 +1,19 @@
+{
+  "name": "@fuda/cli",
+  "version": "0.0.0",
+  "private": true,
+  "bin": {
+    "fuda": "./src/main.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "fuda": "bun run src/main.ts"
+  },
+  "dependencies": {
+    "@fuda/core": "workspace:*",
+    "zod": "^4.1.14"
+  },
+  "devDependencies": {
+    "@fuda/server": "workspace:*"
+  }
+}
