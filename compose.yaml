@@ -1,0 +1,56 @@
+name: fuda
+
+# One invocation brings up everything: `docker compose up`.
+# Every value below can be overridden from the environment, because nothing
+# here may assume a particular host, port or platform.
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${FUDA_DB_USER:-fuda}
+      POSTGRES_PASSWORD: ${FUDA_DB_PASSWORD:-fuda}
+      POSTGRES_DB: ${FUDA_DB_NAME:-fuda}
+    volumes:
+      # postgres:18 moved PGDATA to /var/lib/postgresql/18/docker and declares
+      # the volume one level up. Mounting the old /var/lib/postgresql/data
+      # would appear to work and persist nothing.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${FUDA_DB_USER:-fuda} -d ${FUDA_DB_NAME:-fuda}']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+  server:
+    build: .
+    environment:
+      FUDA_DATABASE_URL: postgres://${FUDA_DB_USER:-fuda}:${FUDA_DB_PASSWORD:-fuda}@db:5432/${FUDA_DB_NAME:-fuda}
+      FUDA_PORT: '8787'
+      FUDA_BASE_URL: ${FUDA_BASE_URL:-http://localhost:8787}
+      FUDA_PERSON_IDENTITY: ${FUDA_PERSON_IDENTITY:-person}
+    ports:
+      - '${FUDA_PUBLISH_PORT:-8787}:8787'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # bun is the one runtime guaranteed to be in this image, so the check
+      # does not depend on curl or wget being present.
+      test:
+        [
+          'CMD',
+          'bun',
+          '-e',
+          'const r = await fetch("http://localhost:8787/health").catch(() => null); process.exit(r?.ok ? 0 : 1)',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  db-data:

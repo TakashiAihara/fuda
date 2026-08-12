@@ -16,9 +16,21 @@ fuda gives them somewhere to live. The agent writes them; you read and answer th
 
 ## Status
 
-Requirements are settled. Implementation has not started.
+Early. The specification is settled and the skeleton stands up: `docker compose up` starts PostgreSQL and a server that migrates itself and answers `/health`. Items, the CLI, the browser screen and MCP are not built yet.
 
-See `docs/requirements.md` for the specification.
+- `docs/requirements.md` — what fuda is, decided
+- `docs/design/01-implementation-plan.md` — how it gets built, and what is done so far
+- `docs/glossary.md` — one word, one meaning
+
+## Running it
+
+```bash
+docker compose up
+```
+
+That is the whole installation. PostgreSQL comes with it, migrations run on start, and the server is at <http://localhost:8787>.
+
+Nothing assumes a particular host or platform. Every value is configuration, and `.env.example` lists them; only the database connection has no default.
 
 ## Interfaces
 

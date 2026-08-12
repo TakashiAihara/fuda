@@ -1,0 +1,27 @@
+import { createApp } from './app.ts';
+import { loadConfig } from './config.ts';
+import { createDatabase } from './db/client.ts';
+import { runMigrations } from './db/migrate.ts';
+
+const config = loadConfig(process.env);
+const database = createDatabase(config.databaseUrl);
+
+await runMigrations(database);
+
+const app = createApp({ probeDatabase: database.probe });
+
+const server = Bun.serve({
+  port: config.port,
+  fetch: app.fetch,
+});
+
+console.log(`fuda listening on ${server.url.origin}, reachable at ${config.baseUrl}`);
+
+const shutdown = async () => {
+  await server.stop();
+  await database.close();
+  process.exit(0);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

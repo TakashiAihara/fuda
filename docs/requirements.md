@@ -28,13 +28,13 @@ One item is one exchange. It mirrors how an agent already structures a written r
 
 Reply forms, extensible:
 
-| Reply form | How it is answered |
-|---|---|
-| free text | written answer |
-| choice | pick one of the offered options |
-| approval | confirm whether to proceed |
+| Reply form    | How it is answered                    |
+| ------------- | ------------------------------------- |
+| free text     | written answer                        |
+| choice        | pick one of the offered options       |
+| approval      | confirm whether to proceed            |
 | external tool | done elsewhere, then closed on return |
-| pickup | the agent pulls it and starts work |
+| pickup        | the agent pulls it and starts work    |
 
 Combinations are not restricted by the schema. Some combinations do not occur in practice — a report does not carry choices — but encoding prohibitions pushes the agent into workarounds when an exception appears. Whether a reply form is attached is decided per section, at the time of writing.
 
@@ -70,13 +70,13 @@ State lives on sections. The item's state is derived: an item is open while any 
 
 State only advances through the action of the actor who owns it, and ownership follows the recipient rather than the kind of actor.
 
-| Transition | Advanced by | Trigger |
-|---|---|---|
-| unanswered to answered | the recipient | replied |
-| unanswered to deferred, and back | the recipient | postponed, resumed |
-| not started to in progress to done | whoever took it | picked up, finished |
-| item closes (derived) | nobody | all sections settled |
-| item closes (explicit) | the person, or the sender withdrawing what they raised | closed flag set |
+| Transition                         | Advanced by                                            | Trigger              |
+| ---------------------------------- | ------------------------------------------------------ | -------------------- |
+| unanswered to answered             | the recipient                                          | replied              |
+| unanswered to deferred, and back   | the recipient                                          | postponed, resumed   |
+| not started to in progress to done | whoever took it                                        | picked up, finished  |
+| item closes (derived)              | nobody                                                 | all sections settled |
+| item closes (explicit)             | the person, or the sender withdrawing what they raised | closed flag set      |
 
 Nobody settles what was addressed to someone else. An agent does not answer what is waiting on the person, and the person does not mark an agent's request done. An unaddressed section may be answered by anyone, which is what makes it unaddressed.
 

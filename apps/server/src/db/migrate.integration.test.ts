@@ -1,0 +1,46 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createDatabase, type Database } from './client.ts';
+import { runMigrations } from './migrate.ts';
+
+// Real PostgreSQL, driven the way the server drives it. FUDA_DATABASE_URL is
+// supplied by whoever runs the integration suite; compose and CI both do.
+const url = process.env['FUDA_DATABASE_URL'];
+
+describe.skipIf(!url)('migrations', () => {
+  let database: Database;
+
+  beforeAll(async () => {
+    database = createDatabase(url as string);
+    await database.sql`drop schema if exists public cascade`;
+    await database.sql`create schema public`;
+    await database.sql`drop table if exists drizzle.__drizzle_migrations`;
+  });
+
+  afterAll(async () => {
+    await database.close();
+  });
+
+  it('installs pg_trgm, which the search index needs', async () => {
+    await runMigrations(database);
+
+    const rows = await database.sql`select 1 from pg_extension where extname = 'pg_trgm'`;
+
+    expect(rows).toHaveLength(1);
+  });
+
+  it('is idempotent, because the server migrates on every start', async () => {
+    await runMigrations(database);
+    await runMigrations(database);
+
+    const applied = await database.sql`
+      select count(*)::int as count from drizzle.__drizzle_migrations
+    `;
+
+    // Applied once, no matter how many times the server restarted.
+    expect(applied[0]?.['count']).toBe(1);
+  });
+
+  it('leaves the database answering afterwards', async () => {
+    expect(await database.probe()).toBe(true);
+  });
+});

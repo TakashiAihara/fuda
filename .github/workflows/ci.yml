@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: types, lint, format, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run fmt:check
+      - run: bun run test
+
+  integration:
+    name: integration tests against PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: fuda
+          POSTGRES_PASSWORD: fuda
+          POSTGRES_DB: fuda
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fuda -d fuda"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run test:integration
+        env:
+          FUDA_DATABASE_URL: postgres://fuda:fuda@localhost:5432/fuda
+
+  compose:
+    name: docker compose up is healthy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The claim in the README is that one invocation brings fuda up. That is
+      # only true for as long as something keeps checking it.
+      - run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: the server answers
+        run: |
+          set -euo pipefail
+          response=$(curl -fsS http://localhost:8787/health)
+          echo "$response"
+          test "$response" = '{"status":"ok","database":"ok"}'
+
+      - name: the migration ran
+        run: |
+          set -euo pipefail
+          docker compose exec -T db psql -U fuda -d fuda -tAc \
+            "select count(*) from pg_extension where extname = 'pg_trgm'" | grep -qx 1
+
+      - if: failure()
+        run: docker compose logs --no-color
+
+      - if: always()
+        run: docker compose down -v

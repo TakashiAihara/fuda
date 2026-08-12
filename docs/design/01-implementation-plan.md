@@ -10,13 +10,13 @@ Everything marked `DECIDE-n` needs an answer before implementation starts. They 
 
 Five deliverables, one process to run.
 
-| Piece | What it is | Runs where |
-|---|---|---|
-| core | Schemas, types, state machines. No I/O | library |
-| server | HTTP API, SSE stream, notification worker, serves the web bundle | container |
-| web | The one screen | browser, served by server |
-| cli | `fuda` — the agent's mouth and ears | agent's machine |
-| mcp | The same operations as MCP tools | agent's machine |
+| Piece  | What it is                                                       | Runs where                |
+| ------ | ---------------------------------------------------------------- | ------------------------- |
+| core   | Schemas, types, state machines. No I/O                           | library                   |
+| server | HTTP API, SSE stream, notification worker, serves the web bundle | container                 |
+| web    | The one screen                                                   | browser, served by server |
+| cli    | `fuda` — the agent's mouth and ears                              | agent's machine           |
+| mcp    | The same operations as MCP tools                                 | agent's machine           |
 
 ```
 agent ──cli───┐
@@ -41,41 +41,41 @@ PostgreSQL. Settled axes are columns; section bodies and overflow are JSONB, per
 
 ### items
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid v7 | time-ordered, so the primary key sorts by creation |
-| `summary` | text | one line, shown in the list — `DECIDE-2` |
-| `sender` | text | who wrote it. Required. Never verified |
-| `attribution` | jsonb | arbitrary labels, e.g. `{"session":"…","repository":"fuda","branch":"main"}` |
-| `origin_item_id` | uuid null | the item this was raised from |
-| `origin_section_id` | uuid null | the section this was raised from |
-| `created_at` | timestamptz | |
-| `read_at` | timestamptz null | a mark, not a state |
-| `closed_at` | timestamptz null | the explicit closed flag; set means closed regardless of sections |
+| Column              | Type             | Notes                                                                        |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `id`                | uuid v7          | time-ordered, so the primary key sorts by creation                           |
+| `summary`           | text             | one line, shown in the list — `DECIDE-2`                                     |
+| `sender`            | text             | who wrote it. Required. Never verified                                       |
+| `attribution`       | jsonb            | arbitrary labels, e.g. `{"session":"…","repository":"fuda","branch":"main"}` |
+| `origin_item_id`    | uuid null        | the item this was raised from                                                |
+| `origin_section_id` | uuid null        | the section this was raised from                                             |
+| `created_at`        | timestamptz      |                                                                              |
+| `read_at`           | timestamptz null | a mark, not a state                                                          |
+| `closed_at`         | timestamptz null | the explicit closed flag; set means closed regardless of sections            |
 
 `attribution` gets a GIN index. Filtering is `attribution @> '{"repository":"fuda"}'`.
 
 ### sections
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid v7 | |
-| `item_id` | uuid | cascade delete |
-| `position` | int | order within the item |
-| `kind` | text | `report` \| `notice` \| `question` \| `request` |
-| `reply_form` | text null | `free_text` \| `choice` \| `approval` \| `external_tool` \| `pickup`; null means no reply needed |
-| `body` | jsonb | the varying part: `{ "text": "…", "options": […], "link": "…" }` |
-| `state` | text null | null when `reply_form` is null; otherwise see below |
-| `unanswered_since` | timestamptz null | when it became unanswered — the list orders by this |
-| `settled_at` | timestamptz null | when it reached answered or done |
-| `reply` | jsonb null | the answer |
-| `answered_by` | text null | who replied. Required whenever `reply` is present |
-| `recipient` | text null | who owes the answer. Null means anyone |
-| `claimed_by` | text null | the session that picked it up |
-| `claimed_at` | timestamptz null | |
-| `progress_at` | timestamptz null | last movement; a stale one returns to not started |
-| `notified_at` | timestamptz null | batching |
-| `reminded_at` | timestamptz null | reminder cap |
+| Column             | Type             | Notes                                                                                            |
+| ------------------ | ---------------- | ------------------------------------------------------------------------------------------------ |
+| `id`               | uuid v7          |                                                                                                  |
+| `item_id`          | uuid             | cascade delete                                                                                   |
+| `position`         | int              | order within the item                                                                            |
+| `kind`             | text             | `report` \| `notice` \| `question` \| `request`                                                  |
+| `reply_form`       | text null        | `free_text` \| `choice` \| `approval` \| `external_tool` \| `pickup`; null means no reply needed |
+| `body`             | jsonb            | the varying part: `{ "text": "…", "options": […], "link": "…" }`                                 |
+| `state`            | text null        | null when `reply_form` is null; otherwise see below                                              |
+| `unanswered_since` | timestamptz null | when it became unanswered — the list orders by this                                              |
+| `settled_at`       | timestamptz null | when it reached answered or done                                                                 |
+| `reply`            | jsonb null       | the answer                                                                                       |
+| `answered_by`      | text null        | who replied. Required whenever `reply` is present                                                |
+| `recipient`        | text null        | who owes the answer. Null means anyone                                                           |
+| `claimed_by`       | text null        | the session that picked it up                                                                    |
+| `claimed_at`       | timestamptz null |                                                                                                  |
+| `progress_at`      | timestamptz null | last movement; a stale one returns to not started                                                |
+| `notified_at`      | timestamptz null | batching                                                                                         |
+| `reminded_at`      | timestamptz null | reminder cap                                                                                     |
 
 `kind` and `reply_form` are `text` with a check constraint, not a PostgreSQL enum. The requirements call reply forms extensible, and altering a check constraint is a migration; altering an enum in use is a fight.
 
@@ -148,20 +148,20 @@ JSON over HTTP. Everything the agent needs and everything the browser needs, no 
 
 One set of endpoints. There is no browser half and no agent half — what an actor may do follows the recipient of the section it is acting on, so the same endpoint serves both.
 
-| Method | Path | Effect |
-|---|---|---|
-| `GET` | `/api/items` | list; filters `state`, `attribution`, `recipient`, `q`, `closed` |
-| `GET` | `/api/items/:id` | item with sections |
-| `POST` | `/api/items` | write an item, and pick up in the same operation |
-| `POST` | `/api/items/:id/read` | set the read mark |
-| `POST` | `/api/items/:id/close` | set the closed flag |
-| `POST` | `/api/sections/:id/reply` | answer; body depends on the reply form |
-| `POST` | `/api/sections/:id/defer` | postpone |
-| `POST` | `/api/sections/:id/resume` | un-postpone |
-| `POST` | `/api/pickup` | pick up without writing — the minimum-interval path |
-| `POST` | `/api/sections/:id/progress` | movement, so the request is not treated as stalled |
-| `POST` | `/api/sections/:id/finish` | request done |
-| `GET` | `/api/events` | SSE; one event per change, so an open browser stays current |
+| Method | Path                         | Effect                                                           |
+| ------ | ---------------------------- | ---------------------------------------------------------------- |
+| `GET`  | `/api/items`                 | list; filters `state`, `attribution`, `recipient`, `q`, `closed` |
+| `GET`  | `/api/items/:id`             | item with sections                                               |
+| `POST` | `/api/items`                 | write an item, and pick up in the same operation                 |
+| `POST` | `/api/items/:id/read`        | set the read mark                                                |
+| `POST` | `/api/items/:id/close`       | set the closed flag                                              |
+| `POST` | `/api/sections/:id/reply`    | answer; body depends on the reply form                           |
+| `POST` | `/api/sections/:id/defer`    | postpone                                                         |
+| `POST` | `/api/sections/:id/resume`   | un-postpone                                                      |
+| `POST` | `/api/pickup`                | pick up without writing — the minimum-interval path              |
+| `POST` | `/api/sections/:id/progress` | movement, so the request is not treated as stalled               |
+| `POST` | `/api/sections/:id/finish`   | request done                                                     |
+| `GET`  | `/api/events`                | SSE; one event per change, so an open browser stays current      |
 
 Every write carries a `sender`. The browser omits it and the server fills in the person's configured identity; an agent supplies its own. `reply`, `defer` and `resume` are refused when the sender is neither the section's recipient nor is the recipient null. `close` is refused unless the sender is the person or the item's own sender.
 
@@ -198,11 +198,24 @@ Item input is JSON on stdin or in a file. Section bodies are markdown and can be
   "attribution": { "session": "01K6Ss…", "repository": "fuda", "branch": "main" },
   "sections": [
     { "kind": "report", "body": { "text": "Moved the reader…" } },
-    { "kind": "question", "reply_form": "choice", "recipient": "person",
-      "body": { "text": "Which name?", "options": [
-        { "value": "a", "label": "pickup" }, { "value": "b", "label": "claim" } ] } },
-    { "kind": "request", "reply_form": "pickup", "recipient": null,
-      "body": { "text": "Check the other file too" } }
+    {
+      "kind": "question",
+      "reply_form": "choice",
+      "recipient": "person",
+      "body": {
+        "text": "Which name?",
+        "options": [
+          { "value": "a", "label": "pickup" },
+          { "value": "b", "label": "claim" }
+        ]
+      }
+    },
+    {
+      "kind": "request",
+      "reply_form": "pickup",
+      "recipient": null,
+      "body": { "text": "Check the other file too" }
+    }
   ]
 }
 ```
@@ -257,21 +270,21 @@ Message content is configurable: `count` (a count and a link, the default, becau
 
 Environment variables, all with defaults except the database URL. Nothing assumes a host, a platform, or the author's machine.
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `FUDA_DATABASE_URL` | — | required |
-| `FUDA_PORT` | `8787` | server port |
-| `FUDA_BASE_URL` | `http://localhost:8787` | the link put in notifications |
-| `FUDA_PERSON_IDENTITY` | `person` | what the server stamps on anything the browser sends. An authenticated username later |
-| `FUDA_NOTIFY_TARGET` | `none` | `none` \| `webhook` |
-| `FUDA_NOTIFY_WEBHOOK_URL` | — | required when target is webhook |
-| `FUDA_NOTIFY_CONTENT` | `count` | `count` \| `summary` |
-| `FUDA_NOTIFY_BATCH_WINDOW` | `60s` | batching window |
-| `FUDA_NOTIFY_REMINDER_AFTER` | `4h` | one reminder after this |
-| `FUDA_PICKUP_MIN_INTERVAL` | `30m` | `--if-stale` threshold |
-| `FUDA_PICKUP_STALE_AFTER` | `30m` | returns in-progress to not started |
-| `FUDA_URL` | `http://localhost:8787` | the cli and mcp side |
-| `FUDA_SENDER` | — | required by the cli and mcp. Who this agent is |
+| Variable                     | Default                 | Meaning                                                                               |
+| ---------------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| `FUDA_DATABASE_URL`          | —                       | required                                                                              |
+| `FUDA_PORT`                  | `8787`                  | server port                                                                           |
+| `FUDA_BASE_URL`              | `http://localhost:8787` | the link put in notifications                                                         |
+| `FUDA_PERSON_IDENTITY`       | `person`                | what the server stamps on anything the browser sends. An authenticated username later |
+| `FUDA_NOTIFY_TARGET`         | `none`                  | `none` \| `webhook`                                                                   |
+| `FUDA_NOTIFY_WEBHOOK_URL`    | —                       | required when target is webhook                                                       |
+| `FUDA_NOTIFY_CONTENT`        | `count`                 | `count` \| `summary`                                                                  |
+| `FUDA_NOTIFY_BATCH_WINDOW`   | `60s`                   | batching window                                                                       |
+| `FUDA_NOTIFY_REMINDER_AFTER` | `4h`                    | one reminder after this                                                               |
+| `FUDA_PICKUP_MIN_INTERVAL`   | `30m`                   | `--if-stale` threshold                                                                |
+| `FUDA_PICKUP_STALE_AFTER`    | `30m`                   | returns in-progress to not started                                                    |
+| `FUDA_URL`                   | `http://localhost:8787` | the cli and mcp side                                                                  |
+| `FUDA_SENDER`                | —                       | required by the cli and mcp. Who this agent is                                        |
 
 `compose.yaml` starts PostgreSQL with a named volume and the server, and publishes one port. `docker compose up` is the whole installation.
 
@@ -288,16 +301,16 @@ Any change to behaviour comes with a test in the same change. A behaviour change
 
 Each step leaves the tree working and is one draft PR.
 
-| # | Contents | Working means |
-|---|---|---|
-| 1 | Workspace, TypeScript, lint, `compose.yaml`, PostgreSQL, migration runner, `docs/glossary.md`, CI | `docker compose up` is healthy |
-| 2 | core schemas and state machines, tables, repository, `POST`/`GET` items | an item round-trips through the API, with tests |
-| 3 | `fuda write`, `list`, `show` | the agent can store and read items |
-| 4 | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE | the loop closes without the terminal |
-| 5 | `fuda mcp` | agents on MCP have the same reach |
-| 6 | Pickup: claim on write, `--if-stale`, progress, finish, stale return. Agent-side answering: `reply`, `defer`, `resume`, `withdraw`, refused when the sender is not the recipient | requests flow both ways, and agent to agent works end to end |
-| 7 | Notifications: batching, one reminder, `none` and `webhook` targets | new unanswered items announce themselves |
-| 8 | Search over closed items, README and configuration reference | publishable |
+| #   | Contents                                                                                                                                                                         | Working means                                                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | Workspace, TypeScript, lint, `compose.yaml`, PostgreSQL, migration runner, `docs/glossary.md`, CI                                                                                | `docker compose up` is healthy                               |
+| 2   | core schemas and state machines, tables, repository, `POST`/`GET` items                                                                                                          | an item round-trips through the API, with tests              |
+| 3   | `fuda write`, `list`, `show`                                                                                                                                                     | the agent can store and read items                           |
+| 4   | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE                                                                                                   | the loop closes without the terminal                         |
+| 5   | `fuda mcp`                                                                                                                                                                       | agents on MCP have the same reach                            |
+| 6   | Pickup: claim on write, `--if-stale`, progress, finish, stale return. Agent-side answering: `reply`, `defer`, `resume`, `withdraw`, refused when the sender is not the recipient | requests flow both ways, and agent to agent works end to end |
+| 7   | Notifications: batching, one reminder, `none` and `webhook` targets                                                                                                              | new unanswered items announce themselves                     |
+| 8   | Search over closed items, README and configuration reference                                                                                                                     | publishable                                                  |
 
 Step 4 is where fuda first does its job. Steps 1 to 3 are the shortest path to it.
 
@@ -305,17 +318,17 @@ Step 4 is where fuda first does its job. Steps 1 to 3 are the shortest path to i
 
 Answered 2026-08-11.
 
-| ID | Outcome |
-|---|---|
-| DECIDE-1 | Through the server |
-| DECIDE-2 | An explicit `summary` |
-| DECIDE-3 | Several sections of one kind are allowed |
-| DECIDE-4 | The state machine is chosen by `reply_form` |
-| DECIDE-5 | Drizzle, against the recommendation below |
-| DECIDE-6 | `fuda mcp`, a subcommand |
+| ID       | Outcome                                                       |
+| -------- | ------------------------------------------------------------- |
+| DECIDE-1 | Through the server                                            |
+| DECIDE-2 | An explicit `summary`                                         |
+| DECIDE-3 | Several sections of one kind are allowed                      |
+| DECIDE-4 | The state machine is chosen by `reply_form`                   |
+| DECIDE-5 | Drizzle, against the recommendation below                     |
+| DECIDE-6 | `fuda mcp`, a subcommand                                      |
 | DECIDE-7 | `fuda pickup --if-stale`, with the hook shipped as an example |
-| DECIDE-8 | `none` and `webhook` |
-| DECIDE-9 | English |
+| DECIDE-8 | `none` and `webhook`                                          |
+| DECIDE-9 | English                                                       |
 
 The reasoning behind each is kept below, including for the one that went the other way.
 
@@ -387,21 +400,21 @@ Names taken from the requirements and used unchanged: item, section, report, not
 
 Names introduced here, needing approval:
 
-| Name | Where | What it means |
-|---|---|---|
-| `summary` | items | the one line the list shows (`DECIDE-2`) |
-| `settled` | derivation | a section that owes nothing: answered, done, or reply-free |
-| `claimed_by`, `claimed_at` | sections | which session picked a request up, and when |
-| `progress_at` | sections | last movement; the stale check reads it |
-| `unanswered_since` | sections | the requirements' "time a section became unanswered" |
-| `answered_by` | sections | who replied. Present whenever a reply is |
-| `origin_item_id`, `origin_section_id` | items | the requirements' "which item and section it was raised from" |
-| `finish` | cli, api | the agent declaring a request done |
-| `progress` | cli, api | the agent reporting movement |
+| Name                                  | Where      | What it means                                                 |
+| ------------------------------------- | ---------- | ------------------------------------------------------------- |
+| `summary`                             | items      | the one line the list shows (`DECIDE-2`)                      |
+| `settled`                             | derivation | a section that owes nothing: answered, done, or reply-free    |
+| `claimed_by`, `claimed_at`            | sections   | which session picked a request up, and when                   |
+| `progress_at`                         | sections   | last movement; the stale check reads it                       |
+| `unanswered_since`                    | sections   | the requirements' "time a section became unanswered"          |
+| `answered_by`                         | sections   | who replied. Present whenever a reply is                      |
+| `origin_item_id`, `origin_section_id` | items      | the requirements' "which item and section it was raised from" |
+| `finish`                              | cli, api   | the agent declaring a request done                            |
+| `progress`                            | cli, api   | the agent reporting movement                                  |
 
-`docs/glossary.md` lands in step 1 and carries these, along with the words that collide and must never be used bare: *state* (a section's versus an item's derived one), *report* (a section kind versus the completion of a request), *session* (the agent's versus anything HTTP), *request* (a section kind versus an HTTP request), *done* (a request's state versus finishing anything at all), *open* (an unsettled item versus opening a link).
+`docs/glossary.md` lands in step 1 and carries these, along with the words that collide and must never be used bare: _state_ (a section's versus an item's derived one), _report_ (a section kind versus the completion of a request), _session_ (the agent's versus anything HTTP), _request_ (a section kind versus an HTTP request), _done_ (a request's state versus finishing anything at all), _open_ (an unsettled item versus opening a link).
 
-One collision was removed rather than documented. A request's `target` and a notification's target were the same word for different things; renaming the first to `recipient` leaves *target* meaning a notification's destination and nothing else.
+One collision was removed rather than documented. A request's `target` and a notification's target were the same word for different things; renaming the first to `recipient` leaves _target_ meaning a notification's destination and nothing else.
 
 ## 14. Amendment, 2026-08-12
 

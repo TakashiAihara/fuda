@@ -1,0 +1,9 @@
+{
+  "extends": ["@tsconfig/strictest/tsconfig.json", "@tsconfig/bun/tsconfig.json"],
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["bun"]
+  },
+  "include": ["apps/**/*.ts", "packages/**/*.ts", "*.ts"],
+  "exclude": ["node_modules", "**/dist"]
+}
