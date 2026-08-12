@@ -59,6 +59,18 @@ This leaves a gap: during long stretches with no writes, nothing gets picked up.
 
 Picked-up requests are not started silently. The next item the agent writes says what was picked up, and work starts after that. The agent decides the order; the person can correct it in a reply.
 
+## Activity
+
+Items are written at breaks. Between two breaks nothing is visible, and the place to find out what is happening is the terminal — which is the thing this project exists to remove. Answering everything without the terminal is not enough if watching still requires it.
+
+So an agent also writes activity: single lines, as the work happens.
+
+- Activity is not items. It never joins the list, never asks for an answer, and is never sent to a notification target. Reply-free lines accumulating in the list is precisely what the list's ordering exists to prevent
+- A line belongs to its sender, and to the request section it advances when there is one
+- Writing a line is the movement that keeps a taken request from going stale. There is no second signal to send and forget
+- Kept for a month. It is the most volatile thing fuda holds, and keeping it indefinitely would make it most of the database. A month outlasts a long-running session and still leaves something for a later review to read
+- The person can raise a request while watching. It is picked up at the next break, so watching never turns into interrupting
+
 ## State
 
 State lives on sections. The item's state is derived: an item is open while any section is unsettled. Settled means answered, done, or carrying no reply form. Deferred is not settled — postponing is not finishing — so an item with nothing but deferred sections stays open, sits below the unanswered ones, and is never reminded about. The item additionally carries a single closed flag, which wins when set — this keeps derivation as the default while still allowing an item to be dismissed with sections outstanding.
@@ -113,11 +125,14 @@ Closed items are not deleted. Temporary retention means fuda is not the system o
 - The agent reads, writes and replies through a CLI and through MCP. It replies only to what is addressed to it or to nobody
 - The person uses a browser. Viewing, choosing and replying all complete there, and the sender is filled in rather than typed
 
-One screen: a list on the left, the selected item on the right. Navigation between screens is itself a round trip, and round trips are what this project exists to remove.
+One screen: a list, the selected item, and the activity arriving. Navigation between screens is itself a round trip, and round trips are what this project exists to remove.
 
 - Replies happen inside the detail pane. Choices are buttons, approval is one click, free text is a field
 - Next to the reply field is a way to raise a separate item, so an unrelated thought can be captured without leaving
 - An external tool opens by link, not embedded. On return, one click marks the section answered
+- Activity arrives twice over: as a toast that passes, and into a region that keeps it. A toast alone would make it unreviewable, and being able to look back at it is most of the reason it is kept at all
+
+A toast is not a notification. Notifications leave the browser for a pluggable target and fire only when something new becomes unanswered; a toast is the open screen showing what just arrived. Activity produces toasts and never notifications, or a month of it would arrive on someone's phone.
 
 The list puts unanswered items first, oldest first within that group, because the purpose is to stop things from being lost. Who a section is addressed to does not affect ordering; a recipient exists to say whose answer is owed and to stop two sessions from taking the same request, which is a different concern. Filters are attribution, state and recipient. The person's screen defaults to what is waiting on them or on nobody. Filtering by section kind is deliberately absent — an item is a group of sections, so filtering by kind would cut items in half.
 
@@ -131,10 +146,11 @@ The interface can be changed later. What the interface requires to be recorded c
 - The time a section became unanswered, since ordering is by that and not by creation time
 - The link an external tool section points at
 - When a notification was last sent, needed both for batching and for capping reminders
+- Which sender, and which request section, each activity line came from. Neither can be worked out afterwards from the line's text
 
 ## Storage
 
-PostgreSQL with JSONB. The settled axes — section kind, state, sender, recipient, attribution — are columns; section bodies and overflow are JSON.
+PostgreSQL with JSONB. The settled axes — section kind, state, sender, recipient, attribution — are columns; section bodies and overflow are JSON. Activity is its own table rather than a kind of section: it is written at a different rate, read in a different place, and thrown away on a schedule of its own.
 
 The reason for not going fully schemaless: only the section bodies vary. Making the settled axes loose as well would push their consistency into the application, and the operations that matter here (returning a stalled request, preventing two sessions from taking the same one) are conditional updates over state and attribution.
 
@@ -159,5 +175,7 @@ Both of the latter belong to a later stage, where the agent takes a larger plann
 - Nothing assumes the author's own environment. Environment-specific values are configuration
 
 ## Revisions
+
+- 2026-08-12 — Activity added. An agent writes single lines as work happens, so the terminal is not the only place to watch from. Activity is not items and never notifies; writing a line is also the movement that keeps a taken request from going stale; it is kept for a month. The screen gains a third region for it, and a toast is named as distinct from a notification.
 
 - 2026-08-12 — Direction became a pair of identities. A sender is required on everything written, a recipient is optional on every section, and both come from one set, so agent to agent needs no special case. State ownership moved from the kind of actor to the recipient; the person may still be the only one who dismisses an item, joined by a sender withdrawing what they raised. A request's `target` became a section's `recipient`, leaving `target` to mean a notification's destination and nothing else. Replying joined the CLI and MCP, which previously had no way to answer at all.

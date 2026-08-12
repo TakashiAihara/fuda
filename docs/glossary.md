@@ -105,10 +105,23 @@ The values of `sections.reply_form`. The list is meant to grow, which is why it 
 | pickup                           | `sections.reply_form` value                  | the reply form meaning "take this and start". The name of the form                                                                                                                                                                            |
 | claim                            | `sections.claimed_by`, `sections.claimed_at` | the act of taking a request, and who took it. Not a reply form — do not use it as one                                                                                                                                                         |
 | not started / in progress / done | `sections.state`                             | the request's states                                                                                                                                                                                                                          |
-| progress                         | `sections.progress_at`                       | the last sign of movement. Used to tell a live request from an abandoned one                                                                                                                                                                  |
-| stale                            | derived from `progress_at`                   | in progress with no movement for long enough. A stale request returns to `not started`                                                                                                                                                        |
+| movement | the newest `activity.written_at` for a section | the sign that a taken request is still being worked on. Writing an activity line *is* the movement; there is no separate signal to send |
+| stale | derived from the newest activity | in progress with no movement for long enough. A stale request returns to `not started` |
 | break                            | not stored                                   | the moment an agent writes an item. Writing is itself the claim that a unit of work finished, so it is when requests get picked up                                                                                                            |
 | minimum interval                 | `FUDA_PICKUP_MIN_INTERVAL`                   | the floor under picking up. Long stretches with no writes would otherwise leave requests sitting, so once enough time has passed an agent picks up without writing. Time, not turn count — turns do not correlate with how much work happened |
+
+### Activity
+
+Written as the work happens, so the terminal is not the only place to watch from.
+
+| Word | Where it exists | Meaning |
+|---|---|---|
+| activity | the `activity` table | single lines an agent writes while working. Not items: never in the list, never owed an answer, never sent to a notification target |
+| line | one row of `activity` | the unit here is a line, not an exchange |
+| toast | the screen | activity passing through the browser as it arrives. Not a notification, see below |
+| retention window | `FUDA_ACTIVITY_RETENTION` | how long lines are kept. A month: long enough to outlast a session and be read back, short enough that activity does not become most of the database |
+
+A **toast** and a **notification** are different things, and the words are not interchangeable. A notification leaves the browser for a pluggable target and fires only when something new becomes unanswered. A toast is the open screen showing what just arrived. Activity makes toasts and never notifications — a month of it arriving on someone's phone is the failure this distinction exists to prevent.
 
 ### Attribution
 
@@ -126,6 +139,7 @@ The **sender is not one of these labels**. It is required and single, which a se
 | --------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | the list        | left of the screen, `GET /api/items`      | every open item, unanswered ones first and oldest first among those. It does not rank, and it does not suggest what to do next                                   |
 | the detail pane | right of the screen, `GET /api/items/:id` | the selected item, and where replying happens. There is no second screen: moving between screens is a round trip, and round trips are what fuda exists to remove |
+| the activity region | the screen, `GET /api/activity` | where activity is kept after its toast has gone. A toast alone would make it unreviewable, and reading it back is most of why it is kept |
 | filter          | query parameters on `GET /api/items`      | narrowing the list. By attribution and state. Never by section kind — an item is a group of sections, so filtering by kind would cut items in half               |
 | search          | `q` on `GET /api/items`                   | finding items by their text, including closed ones                                                                                                               |
 

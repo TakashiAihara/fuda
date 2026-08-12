@@ -73,9 +73,24 @@ PostgreSQL. Settled axes are columns; section bodies and overflow are JSONB, per
 | `recipient`        | text null        | who owes the answer. Null means anyone                                                           |
 | `claimed_by`       | text null        | the session that picked it up                                                                    |
 | `claimed_at`       | timestamptz null |                                                                                                  |
-| `progress_at`      | timestamptz null | last movement; a stale one returns to not started                                                |
 | `notified_at`      | timestamptz null | batching                                                                                         |
 | `reminded_at`      | timestamptz null | reminder cap                                                                                     |
+
+### activity
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid v7 | |
+| `sender` | text | who wrote the line. Required |
+| `section_id` | uuid null | the request section this advances, when there is one |
+| `text` | text | one line |
+| `written_at` | timestamptz | also what the stale check reads |
+
+Its own table, not a kind of section: written at a different rate, read in a different place, and deleted on a schedule of its own. Indexed by `(sender, written_at desc)`, which is how the screen reads it.
+
+`sections.progress_at` does not exist. Writing a line *is* the movement, so the stale check reads the newest activity for that section instead of a column kept in parallel with it. One fact, one place.
+
+Deletion is a sweep in the same worker that batches notifications: anything older than the retention window goes. A month of it is the most volatile thing fuda holds, and keeping it forever would make it most of the database.
 
 `kind` and `reply_form` are `text` with a check constraint, not a PostgreSQL enum. The requirements call reply forms extensible, and altering a check constraint is a migration; altering an enum in use is a fight.
 
@@ -159,7 +174,8 @@ One set of endpoints. There is no browser half and no agent half — what an act
 | `POST` | `/api/sections/:id/defer`    | postpone                                                         |
 | `POST` | `/api/sections/:id/resume`   | un-postpone                                                      |
 | `POST` | `/api/pickup`                | pick up without writing — the minimum-interval path              |
-| `POST` | `/api/sections/:id/progress` | movement, so the request is not treated as stalled               |
+| `POST` | `/api/activity` | add a line. Also the movement that keeps a taken request from going stale |
+| `GET` | `/api/activity` | read it back, newest first, filtered by sender |
 | `POST` | `/api/sections/:id/finish`   | request done                                                     |
 | `GET`  | `/api/events`                | SSE; one event per change, so an open browser stays current      |
 
@@ -182,7 +198,7 @@ fuda defer <section-id>                postpone what is addressed to me
 fuda resume <section-id>               un-postpone it
 fuda withdraw <item-id>                close an item I raised
 fuda pickup [--if-stale] [--recipient …]   pick up without writing
-fuda progress <section-id>
+fuda activity <text> [--section <id>]     add a line; also the movement on a taken request
 fuda finish <section-id> [--file report.json]
 fuda mcp                               serve MCP over stdio
 ```
@@ -228,7 +244,7 @@ There is no `fuda close` for someone else's item. Withdrawal reaches only what t
 
 ## 5. MCP
 
-The same operations, named the same, as tools: `fuda_write`, `fuda_list`, `fuda_show`, `fuda_reply`, `fuda_defer`, `fuda_resume`, `fuda_withdraw`, `fuda_pickup`, `fuda_progress`, `fuda_finish`. Arguments are the JSON above, which is what MCP wants anyway. Tool descriptions say that a reply reaches only what is addressed to this sender, so the model does not discover it by being refused.
+The same operations, named the same, as tools: `fuda_write`, `fuda_list`, `fuda_show`, `fuda_reply`, `fuda_defer`, `fuda_resume`, `fuda_withdraw`, `fuda_pickup`, `fuda_activity`, `fuda_finish`. Arguments are the JSON above, which is what MCP wants anyway. Tool descriptions say that a reply reaches only what is addressed to this sender, so the model does not discover it by being refused.
 
 Configuration is two environment variables: the server URL and the sender.
 
@@ -261,9 +277,9 @@ Message content is configurable: `count` (a count and a link, the default, becau
 ## 8. Pickup and stalling
 
 - A write claims: unaddressed requests, plus requests addressed to this sender. `not_started` only. A single `UPDATE … WHERE state = 'not_started' … RETURNING`, so two sessions cannot take the same one
-- The claim records `claimed_by` and `claimed_at` and sets `progress_at`
-- `POST /api/sections/:id/progress` moves `progress_at`. The agent calls it while working
-- The worker returns `in_progress` sections whose `progress_at` is older than the stale threshold to `not_started`, clearing `claimed_by`. Configuration, default measured in tens of minutes
+- The claim records `claimed_by` and `claimed_at`, and writes an activity line saying what was taken
+- `POST /api/activity` adds a line. Sent while working, it is also the movement, so there is no separate heartbeat to forget
+- The worker returns `in_progress` sections whose newest activity is older than the stale threshold to `not_started`, clearing `claimed_by`. Configuration, default measured in tens of minutes
 - The response to a write lists what was claimed, because the requirements say pickup is never silent: the next item the agent writes says what it took
 
 ## 9. Configuration
@@ -283,6 +299,7 @@ Environment variables, all with defaults except the database URL. Nothing assume
 | `FUDA_NOTIFY_REMINDER_AFTER` | `4h`                    | one reminder after this                                                               |
 | `FUDA_PICKUP_MIN_INTERVAL`   | `30m`                   | `--if-stale` threshold                                                                |
 | `FUDA_PICKUP_STALE_AFTER`    | `30m`                   | returns in-progress to not started                                                    |
+| `FUDA_ACTIVITY_RETENTION` | `30d` | how long activity is kept before the sweep takes it |
 | `FUDA_URL`                   | `http://localhost:8787` | the cli and mcp side                                                                  |
 | `FUDA_SENDER`                | —                       | required by the cli and mcp. Who this agent is                                        |
 
@@ -307,12 +324,15 @@ Each step leaves the tree working and is one draft PR.
 | 2   | core schemas and state machines, tables, repository, `POST`/`GET` items                                                                                                          | an item round-trips through the API, with tests              |
 | 3   | `fuda write`, `list`, `show`                                                                                                                                                     | the agent can store and read items                           |
 | 4   | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE                                                                                                   | the loop closes without the terminal                         |
+| 4b | Activity: the table, `POST`/`GET /api/activity`, `fuda activity`, the third region of the screen and its toasts | the work is watchable without the terminal |
 | 5   | `fuda mcp`                                                                                                                                                                       | agents on MCP have the same reach                            |
-| 6   | Pickup: claim on write, `--if-stale`, progress, finish, stale return. Agent-side answering: `reply`, `defer`, `resume`, `withdraw`, refused when the sender is not the recipient | requests flow both ways, and agent to agent works end to end |
-| 7   | Notifications: batching, one reminder, `none` and `webhook` targets                                                                                                              | new unanswered items announce themselves                     |
+| 6   | Pickup: claim on write, `--if-stale`, finish, stale return. Agent-side answering: `reply`, `defer`, `resume`, `withdraw`, refused when the sender is not the recipient | requests flow both ways, and agent to agent works end to end |
+| 7   | Notifications: batching, one reminder, `none` and `webhook` targets. The activity sweep rides the same worker                                                                                                              | new unanswered items announce themselves                     |
 | 8   | Search over closed items, README and configuration reference                                                                                                                     | publishable                                                  |
 
 Step 1 is built and on `main`. What it leaves standing: `docker compose up` brings up PostgreSQL and a server that migrates itself and answers `/health`, with the checks in section 10 running in CI.
+
+Step 4b lands after the screen exists, because activity with nowhere to show it is a table nobody reads.
 
 Step 4 is where fuda first does its job. Steps 1 to 3 are the shortest path to it.
 
@@ -407,12 +427,12 @@ Names introduced here, needing approval:
 | `summary`                             | items      | the one line the list shows (`DECIDE-2`)                      |
 | `settled`                             | derivation | a section that owes nothing: answered, done, or reply-free    |
 | `claimed_by`, `claimed_at`            | sections   | which session picked a request up, and when                   |
-| `progress_at`                         | sections   | last movement; the stale check reads it                       |
+| `written_at` | activity | when a line was written; the stale check reads the newest |
 | `unanswered_since`                    | sections   | the requirements' "time a section became unanswered"          |
 | `answered_by`                         | sections   | who replied. Present whenever a reply is                      |
 | `origin_item_id`, `origin_section_id` | items      | the requirements' "which item and section it was raised from" |
 | `finish`                              | cli, api   | the agent declaring a request done                            |
-| `progress`                            | cli, api   | the agent reporting movement                                  |
+| `activity` | cli, api, storage | a line written as work happens; not an item, never notified |
 
 `docs/glossary.md` lands in step 1 and carries these, along with the words that collide and must never be used bare: _state_ (a section's versus an item's derived one), _report_ (a section kind versus the completion of a request), _session_ (the agent's versus anything HTTP), _request_ (a section kind versus an HTTP request), _done_ (a request's state versus finishing anything at all), _open_ (an unsettled item versus opening a link).
 
