@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>fuda — one screen</title>
+    <style>
+      /* ------------------------------------------------------------------
+         A drawing, not an implementation. Fake data, no network, no build.
+         Everything here is a proposal for docs/design/01-implementation-plan.md
+         step 4, and can be argued with by editing this one file.
+         ------------------------------------------------------------------ */
+
+      :root {
+        color-scheme: light dark;
+
+        --paper: #fbfaf8;
+        --panel: #ffffff;
+        --sunk: #f3f1ed;
+        --line: #e2ded6;
+        --line-strong: #cfc9be;
+        --ink: #21201d;
+        --ink-soft: #6b6760;
+        --ink-faint: #9a958c;
+
+        --waiting: #b4531a;
+        --waiting-soft: #fdf0e6;
+        --deferred: #6a6f8a;
+        --deferred-soft: #eeeff5;
+        --taken: #2f6b4f;
+        --taken-soft: #e8f2ec;
+        --accent: #2a4b8d;
+
+        --radius: 7px;
+        --gap: 14px;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+        --sans:
+          system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #16181b;
+          --panel: #1c1f23;
+          --sunk: #24272c;
+          --line: #2e3238;
+          --line-strong: #3d434b;
+          --ink: #e6e4e0;
+          --ink-soft: #a5a29c;
+          --ink-faint: #74716c;
+
+          --waiting: #e6a171;
+          --waiting-soft: #33251b;
+          --deferred: #a3a8c2;
+          --deferred-soft: #24262f;
+          --taken: #86c2a1;
+          --taken-soft: #1c2a22;
+          --accent: #8fb0e8;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 14px/1.6 var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* One screen. Three regions: what is open, the one you opened, and what
+         is happening. Nothing navigates anywhere. */
+      .screen {
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.65fr) minmax(260px, 0.85fr);
+        gap: 1px;
+        background: var(--line);
+        height: 100vh;
+      }
+
+      .region {
+        background: var(--panel);
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .region > header {
+        padding: 12px 16px 10px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        flex: none;
+      }
+
+      .region > header h2 {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 650;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+      }
+
+      .scroll {
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
+      }
+
+      /* ---------------------------------------------------------------- list */
+
+      .filters {
+        padding: 10px 16px 12px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        flex: none;
+      }
+
+      .chip {
+        font: inherit;
+        font-size: 12px;
+        padding: 3px 9px;
+        border: 1px solid var(--line-strong);
+        border-radius: 100px;
+        background: transparent;
+        color: var(--ink-soft);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .chip[aria-pressed='true'] {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--panel);
+      }
+
+      .chip-group {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .chip-group + .chip-group::before {
+        content: '';
+        width: 1px;
+        height: 16px;
+        background: var(--line);
+        margin-right: 2px;
+      }
+
+      .search {
+        width: 100%;
+        font: inherit;
+        font-size: 12px;
+        padding: 5px 9px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius);
+        background: var(--sunk);
+        color: inherit;
+      }
+
+      .group-label {
+        padding: 12px 16px 4px;
+        font-size: 11px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .row {
+        width: 100%;
+        text-align: left;
+        font: inherit;
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid var(--line);
+        padding: 11px 16px 12px 12px;
+        cursor: pointer;
+        display: grid;
+        grid-template-columns: 4px 1fr;
+        gap: 8px;
+        color: inherit;
+      }
+
+      .row:hover {
+        background: var(--sunk);
+      }
+
+      .row[aria-current='true'] {
+        background: var(--sunk);
+      }
+
+      .row[aria-current='true'] .rail {
+        background: var(--ink);
+      }
+
+      .rail {
+        border-radius: 4px;
+        background: transparent;
+      }
+
+      .row.unread .rail {
+        background: var(--waiting);
+      }
+
+      .row-summary {
+        font-weight: 500;
+        margin-bottom: 3px;
+        overflow-wrap: anywhere;
+      }
+
+      .row.read .row-summary {
+        font-weight: 400;
+        color: var(--ink-soft);
+      }
+
+      .row-meta {
+        font-size: 12px;
+        color: var(--ink-faint);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .owed {
+        font-weight: 600;
+      }
+
+      .owed.waiting {
+        color: var(--waiting);
+      }
+
+      .owed.deferred {
+        color: var(--deferred);
+      }
+
+      .owed.taken {
+        color: var(--taken);
+      }
+
+      .from {
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+
+      .empty {
+        padding: 28px 16px;
+        color: var(--ink-faint);
+        font-size: 13px;
+      }
+
+      /* -------------------------------------------------------------- detail */
+
+      .detail-head {
+        padding: 18px 22px 14px;
+        border-bottom: 1px solid var(--line);
+        flex: none;
+      }
+
+      .detail-head h1 {
+        margin: 0 0 6px;
+        font-size: 17px;
+        line-height: 1.45;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+
+      .labels {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        font-size: 11px;
+        color: var(--ink-faint);
+        font-family: var(--mono);
+      }
+
+      .label {
+        background: var(--sunk);
+        border-radius: 4px;
+        padding: 1px 6px;
+      }
+
+      .sections {
+        padding: 6px 22px 90px;
+      }
+
+      .section {
+        padding: 16px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .section:last-child {
+        border-bottom: 0;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 12px;
+      }
+
+      .kind {
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 11px;
+        color: var(--ink-soft);
+      }
+
+      .state {
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 100px;
+        font-weight: 600;
+      }
+
+      .state.unanswered {
+        background: var(--waiting-soft);
+        color: var(--waiting);
+      }
+
+      .state.deferred {
+        background: var(--deferred-soft);
+        color: var(--deferred);
+      }
+
+      .state.answered {
+        background: var(--sunk);
+        color: var(--ink-faint);
+      }
+
+      .state.not_started,
+      .state.in_progress,
+      .state.done {
+        background: var(--taken-soft);
+        color: var(--taken);
+      }
+
+      .to {
+        font-size: 11px;
+        color: var(--ink-faint);
+        font-family: var(--mono);
+        margin-left: auto;
+      }
+
+      .body {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .body.long {
+        max-height: none;
+      }
+
+      /* Replying happens here. There is nowhere else to go. */
+      .reply {
+        margin-top: 12px;
+        padding: 12px;
+        background: var(--sunk);
+        border-radius: var(--radius);
+      }
+
+      .reply-hint {
+        font-size: 11px;
+        color: var(--ink-faint);
+        margin-bottom: 8px;
+      }
+
+      .choices {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .btn {
+        font: inherit;
+        font-size: 13px;
+        padding: 6px 13px;
+        border-radius: var(--radius);
+        border: 1px solid var(--line-strong);
+        background: var(--panel);
+        color: inherit;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        border-color: var(--ink-soft);
+      }
+
+      .btn.primary {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--panel);
+      }
+
+      .btn.ghost {
+        border-style: dashed;
+        color: var(--ink-soft);
+      }
+
+      .field {
+        width: 100%;
+        font: inherit;
+        padding: 8px 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius);
+        background: var(--panel);
+        color: inherit;
+        resize: vertical;
+        min-height: 62px;
+      }
+
+      .reply-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 8px;
+        flex-wrap: wrap;
+      }
+
+      /* Beside the reply, because the thought arrives while you are reading and
+         has nothing to do with what is on screen. */
+      .raise {
+        margin-left: auto;
+      }
+
+      .answered-note {
+        font-size: 12px;
+        color: var(--ink-faint);
+        margin-top: 10px;
+        padding-left: 10px;
+        border-left: 2px solid var(--line-strong);
+      }
+
+      .link-out {
+        color: var(--accent);
+        text-decoration: none;
+        font-size: 13px;
+      }
+
+      .link-out:hover {
+        text-decoration: underline;
+      }
+
+      .detail-empty {
+        margin: auto;
+        padding: 40px;
+        max-width: 380px;
+        color: var(--ink-faint);
+        text-align: center;
+        font-size: 13px;
+        line-height: 1.8;
+      }
+
+      /* ------------------------------------------------------------ activity */
+
+      .activity-line {
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12.5px;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 9px;
+        align-items: baseline;
+      }
+
+      .activity-line time {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--ink-faint);
+        white-space: nowrap;
+      }
+
+      .activity-who {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--ink-faint);
+        display: block;
+        margin-bottom: 1px;
+      }
+
+      .activity-line.fresh {
+        animation: settle 1.4s ease-out;
+      }
+
+      @keyframes settle {
+        from {
+          background: var(--waiting-soft);
+        }
+        to {
+          background: transparent;
+        }
+      }
+
+      .activity-foot {
+        flex: none;
+        padding: 9px 16px;
+        border-top: 1px solid var(--line);
+        font-size: 11px;
+        color: var(--ink-faint);
+      }
+
+      /* A toast is not a notification. This is the open screen showing what
+         just arrived; a notification leaves the browser and only ever fires
+         for something newly unanswered. */
+      .toasts {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 10;
+        max-width: min(360px, 70vw);
+      }
+
+      .toast {
+        background: var(--panel);
+        border: 1px solid var(--line-strong);
+        border-left: 3px solid var(--ink-soft);
+        border-radius: var(--radius);
+        padding: 9px 12px;
+        font-size: 12.5px;
+        box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
+        animation: rise 0.28s ease-out;
+      }
+
+      .toast.needs-answer {
+        border-left-color: var(--waiting);
+      }
+
+      .toast small {
+        display: block;
+        color: var(--ink-faint);
+        font-family: var(--mono);
+        font-size: 10.5px;
+        margin-bottom: 2px;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+      }
+
+      .note {
+        padding: 10px 16px;
+        background: var(--sunk);
+        border-bottom: 1px solid var(--line);
+        font-size: 11.5px;
+        color: var(--ink-soft);
+        flex: none;
+      }
+
+      @media (max-width: 1100px) {
+        .screen {
+          grid-template-columns: 1fr;
+          grid-template-rows: 40vh 1fr 30vh;
+          height: auto;
+          min-height: 100vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="screen">
+      <section class="region" aria-label="the list">
+        <header>
+          <h2>Open</h2>
+          <span id="count" style="font-size: 12px; color: var(--ink-faint)"></span>
+        </header>
+
+        <div class="filters">
+          <div class="chip-group" data-filter="state">
+            <button class="chip" aria-pressed="true" data-value="open">open</button>
+            <button class="chip" aria-pressed="false" data-value="unanswered">waiting</button>
+            <button class="chip" aria-pressed="false" data-value="closed">closed</button>
+          </div>
+          <div class="chip-group" data-filter="recipient">
+            <button class="chip" aria-pressed="true" data-value="mine">for me</button>
+            <button class="chip" aria-pressed="false" data-value="agents">for agents</button>
+          </div>
+          <div class="chip-group" data-filter="attribution">
+            <button class="chip" aria-pressed="false" data-value="repository:fuda">fuda</button>
+            <button class="chip" aria-pressed="false" data-value="repository:akapen">akapen</button>
+          </div>
+          <input class="search" id="search" placeholder="search, including closed" />
+        </div>
+
+        <div class="scroll" id="list"></div>
+      </section>
+
+      <section class="region" aria-label="the selected item">
+        <div id="detail" style="display: contents"></div>
+      </section>
+
+      <section class="region" aria-label="activity">
+        <header>
+          <h2>Activity</h2>
+        </header>
+        <div class="note">
+          Toasts, and kept here for a month. Never sent anywhere — that is what a
+          notification is, and only something newly unanswered gets one.
+        </div>
+        <div class="scroll" id="activity"></div>
+        <div class="activity-foot" id="activity-foot"></div>
+      </section>
+    </div>
+
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script>
+      // ---------------------------------------------------------------- data
+      // Invented. Written the way the requirements describe items: an exchange
+      // holding sections, some of which owe an answer and say how.
+
+      const PERSON = 'person';
+      const minutes = (n) => n * 60_000;
+      const base = new Date('2026-08-13T09:00:00+09:00').getTime();
+      const at = (m) => new Date(base + minutes(m));
+
+      const items = [
+        {
+          id: '019ff642-cfa6-7d5e-a837-a5f87a88dd6f',
+          summary: 'v3 の移行、続ける前に二つ決めてほしい',
+          sender: 'session:01K6Ss',
+          attribution: { repository: 'fuda', branch: 'feat/v3-migration', machine: 'd1' },
+          read: false,
+          waitingSince: at(-190),
+          sections: [
+            {
+              kind: 'report',
+              body: '読み出しをインターフェースの裏に移した。呼び出し側は 14 箇所あって、うち 2 箇所は戻り値を捨てていたので、そこは別途 issue にしてある。',
+            },
+            {
+              kind: 'question',
+              replyForm: 'choice',
+              recipient: PERSON,
+              state: 'unanswered',
+              body: '取得の失敗をどちらに倒すか。両方の呼び出し側を見た限り、どちらでも通る。',
+              options: [
+                { value: 'throw', label: '例外にする' },
+                { value: 'null', label: 'null を返す' },
+                { value: 'result', label: 'Result 型を入れる' },
+              ],
+            },
+            {
+              kind: 'question',
+              replyForm: 'approval',
+              recipient: PERSON,
+              state: 'unanswered',
+              body: '移行のあいだ旧経路を残す。消すのは全部の呼び出しが移ってから。進めてよいか。',
+            },
+          ],
+        },
+        {
+          id: '019ff5fb-de29-75e5-898e-a6a05a134c7b',
+          summary: '設計書のここだけ見てほしい',
+          sender: 'session:01K6Ss',
+          attribution: { repository: 'fuda', branch: 'feat/v3-migration' },
+          read: false,
+          waitingSince: at(-96),
+          sections: [
+            {
+              kind: 'question',
+              replyForm: 'external_tool',
+              recipient: PERSON,
+              state: 'unanswered',
+              body: '状態機械の節だけ。akapen で開いてあるので、行にコメントを付けてもらえれば拾う。',
+              link: 'https://review.example.internal/design/state-machine',
+            },
+          ],
+        },
+        {
+          id: '019ff700-1111-7000-8000-00000000aa01',
+          summary: '通知先の名前、決めきれていない',
+          sender: 'session:01K6Ss',
+          attribution: { repository: 'fuda', branch: 'main' },
+          read: true,
+          waitingSince: at(-40),
+          sections: [
+            {
+              kind: 'question',
+              replyForm: 'free_text',
+              recipient: PERSON,
+              state: 'unanswered',
+              body: 'target が二つの意味を持ちかけている。依頼の宛先と通知の宛先。片方を別の語にしたいが、どちらを変えるか。',
+            },
+          ],
+        },
+        {
+          id: '019ff700-2222-7000-8000-00000000aa02',
+          summary: '週末のリリース、いつ出すか',
+          sender: 'session:01K6Ss',
+          attribution: { repository: 'akapen' },
+          read: true,
+          waitingSince: at(-1400),
+          sections: [
+            {
+              kind: 'question',
+              replyForm: 'free_text',
+              recipient: PERSON,
+              state: 'deferred',
+              body: 'タグを打つ日。急がないなら来週でもよい。',
+            },
+          ],
+        },
+        {
+          id: '019ff700-3333-7000-8000-00000000aa03',
+          summary: 'PM から: 落ちているテストの切り分けを頼みたい',
+          sender: 'pm',
+          attribution: { repository: 'fuda', machine: 'd1' },
+          read: true,
+          sections: [
+            {
+              kind: 'notice',
+              body: '夜間の実行で 3 件落ちている。全部 timing に見えるが、1 件だけ違う可能性がある。',
+            },
+            {
+              kind: 'request',
+              replyForm: 'pickup',
+              recipient: 'session:worker-2',
+              state: 'in_progress',
+              body: '落ちている 3 件を切り分けて、timing かどうかを分けて報告する。',
+            },
+          ],
+        },
+        {
+          id: '019ff700-4444-7000-8000-00000000aa04',
+          summary: '手が空いたら拾ってほしいもの',
+          sender: PERSON,
+          attribution: {},
+          read: true,
+          sections: [
+            {
+              kind: 'request',
+              replyForm: 'pickup',
+              recipient: null,
+              state: 'not_started',
+              body: 'README の Running it を、compose を持っていない人でも読める形にしておいてほしい。',
+            },
+          ],
+        },
+        {
+          id: '019ff700-5555-7000-8000-00000000aa05',
+          summary: 'CI が緑になった',
+          sender: 'session:01K6Ss',
+          attribution: { repository: 'fuda', branch: 'feat/project-skeleton' },
+          read: true,
+          sections: [
+            {
+              kind: 'report',
+              body: '3 ジョブとも通った。compose を実際に起動して /health を叩くジョブを足してある。',
+            },
+            {
+              kind: 'notice',
+              body: 'integration 用の DB 名を fuda_test に変えた。名前で分かるようにしておかないと、破壊的テストの宛先ガードが弾く。',
+            },
+          ],
+        },
+        {
+          id: '019ff700-6666-7000-8000-00000000aa06',
+          summary: 'ロックファイルの件、直した',
+          sender: 'session:01K6Ss',
+          attribution: { repository: 'fuda' },
+          read: true,
+          closed: true,
+          sections: [
+            {
+              kind: 'report',
+              body: 'workspace が増えるたびに Dockerfile を編集する形になっていた。全部 copy してから install する形にした。',
+            },
+            {
+              kind: 'question',
+              replyForm: 'approval',
+              recipient: PERSON,
+              state: 'answered',
+              answer: 'それでいい。ビルド時間は気にしない',
+              answeredBy: PERSON,
+              body: 'キャッシュを捨てることになるが、それでよいか。',
+            },
+          ],
+        },
+      ];
+
+      const activity = [
+        { at: at(-3), who: 'session:01K6Ss', text: '一覧の絞り込みを実 PostgreSQL に当てて確認した' },
+        { at: at(-5), who: 'session:worker-2', text: '落ちている 3 件のうち 2 件を再現させた' },
+        { at: at(-9), who: 'session:01K6Ss', text: 'or に括弧が無く、and の優先順位に負けていた' },
+        { at: at(-12), who: 'session:01K6Ss', text: 'recipient の絞り込みが他人宛まで返している' },
+        { at: at(-18), who: 'session:worker-2', text: '夜間の実行ログを取り直している' },
+        { at: at(-26), who: 'session:01K6Ss', text: 'migration を当て直した。テーブルは 2 つ' },
+        { at: at(-31), who: 'session:01K6Ss', text: 'uuidv7 は PostgreSQL 18 が持っている' },
+      ];
+
+      const arriving = [
+        { who: 'session:01K6Ss', text: 'view の導出を書き直している' },
+        { who: 'session:worker-2', text: '3 件目は timing ではなさそう' },
+        { who: 'session:01K6Ss', text: 'テストが 1 件落ちた。括弧の件と同じ形' },
+      ];
+
+      // ------------------------------------------------------------- helpers
+
+      const el = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+
+      const clock = (date) =>
+        date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+      const settled = (section) =>
+        section.state === undefined || section.state === 'answered' || section.state === 'done';
+
+      const isOpen = (item) => !item.closed && item.sections.some((s) => !settled(s));
+
+      const counts = (item) => ({
+        waiting: item.sections.filter((s) => s.state === 'unanswered').length,
+        deferred: item.sections.filter((s) => s.state === 'deferred').length,
+        taken: item.sections.filter((s) => s.state === 'not_started' || s.state === 'in_progress')
+          .length,
+      });
+
+      const state = {
+        selected: items[0].id,
+        filters: { state: 'open', recipient: 'mine', attribution: null },
+        search: '',
+      };
+
+      // ---------------------------------------------------------------- list
+
+      function visible() {
+        return items
+          .filter((item) => {
+            if (state.search !== '') {
+              const hay = (item.summary + item.sections.map((s) => s.body).join(' ')).toLowerCase();
+              return hay.includes(state.search.toLowerCase());
+            }
+
+            if (state.filters.state === 'closed') return item.closed === true;
+            if (item.closed) return false;
+            if (state.filters.state === 'unanswered') {
+              return counts(item).waiting > 0;
+            }
+            return isOpen(item);
+          })
+          .filter((item) => {
+            if (state.search !== '') return true;
+            const recipients = item.sections
+              .filter((s) => !settled(s))
+              .map((s) => s.recipient ?? null);
+            if (state.filters.recipient === 'mine') {
+              return recipients.some((r) => r === PERSON || r === null);
+            }
+            return recipients.some((r) => r !== PERSON && r !== null);
+          })
+          .filter((item) => {
+            const wanted = state.filters.attribution;
+            if (wanted === null) return true;
+            const [key, value] = wanted.split(':');
+            return item.attribution[key] === value;
+          })
+          .sort((a, b) => {
+            // Waiting first, and inside that group the one that has been
+            // waiting longest. Nothing here ranks or suggests.
+            const aw = counts(a).waiting > 0;
+            const bw = counts(b).waiting > 0;
+            if (aw !== bw) return aw ? -1 : 1;
+            if (aw && bw) return a.waitingSince - b.waitingSince;
+            return 0;
+          });
+      }
+
+      function renderList() {
+        const list = document.getElementById('list');
+        list.replaceChildren();
+
+        const shown = visible();
+        document.getElementById('count').textContent =
+          shown.length === 0 ? '' : `${shown.length}`;
+
+        if (shown.length === 0) {
+          list.append(el('p', 'empty', 'Nothing here. Which is the point of the ordering.'));
+          return;
+        }
+
+        let labelled = false;
+
+        for (const item of shown) {
+          const c = counts(item);
+
+          if (!labelled && c.waiting > 0 && state.search === '') {
+            const label = el('div', 'group-label');
+            label.append(el('span', null, 'waiting on you'), el('span', null, 'oldest first'));
+            list.append(label);
+            labelled = true;
+          }
+
+          if (labelled && c.waiting === 0 && !list.querySelector('[data-rest]')) {
+            const label = el('div', 'group-label');
+            label.dataset.rest = 'true';
+            label.append(el('span', null, 'the rest'));
+            list.append(label);
+          }
+
+          const row = el('button', `row ${item.read ? 'read' : 'unread'}`);
+          row.setAttribute('aria-current', String(item.id === state.selected));
+          row.append(el('span', 'rail'));
+
+          const main = el('span');
+          main.append(el('span', 'row-summary', item.summary));
+
+          const meta = el('span', 'row-meta');
+          const owed = [];
+          if (c.waiting > 0) owed.push(['waiting', `${c.waiting} waiting`]);
+          if (c.deferred > 0) owed.push(['deferred', `${c.deferred} deferred`]);
+          if (c.taken > 0) owed.push(['taken', `${c.taken} taken`]);
+          if (owed.length === 0) owed.push(['', 'nothing owed']);
+
+          for (const [tone, text] of owed) meta.append(el('span', `owed ${tone}`, text));
+          meta.append(el('span', 'from', item.sender));
+          main.append(meta);
+
+          row.append(main);
+          row.addEventListener('click', () => {
+            state.selected = item.id;
+            item.read = true;
+            render();
+          });
+
+          list.append(row);
+        }
+      }
+
+      // -------------------------------------------------------------- detail
+
+      function replyControls(section) {
+        const box = el('div', 'reply');
+
+        if (section.state === 'answered') {
+          box.append(
+            el('div', 'reply-hint', `answered by ${section.answeredBy}`),
+            el('div', null, section.answer),
+          );
+          return box;
+        }
+
+        if (section.state === 'deferred') {
+          box.append(
+            el(
+              'div',
+              'reply-hint',
+              'Postponed. Not waiting on anyone, and never reminded about — until you pick it up again.',
+            ),
+          );
+          const actions = el('div', 'reply-actions');
+          actions.append(el('button', 'btn', 'resume'));
+          actions.append(raiseButton());
+          box.append(actions);
+          return box;
+        }
+
+        if (section.state === 'not_started' || section.state === 'in_progress') {
+          const who = section.recipient ?? 'anyone';
+          box.append(
+            el(
+              'div',
+              'reply-hint',
+              section.state === 'in_progress'
+                ? `Taken by ${section.recipient}. It comes back as a report.`
+                : `Waiting to be taken by ${who}. Nothing is owed by you.`,
+            ),
+          );
+          return box;
+        }
+
+        if (section.replyForm === 'choice') {
+          box.append(el('div', 'reply-hint', 'Pick one. Picking is the reply.'));
+          const choices = el('div', 'choices');
+          for (const option of section.options) {
+            const button = el('button', 'btn', option.label);
+            button.addEventListener('click', () => {
+              section.state = 'answered';
+              section.answer = option.label;
+              section.answeredBy = PERSON;
+              render();
+            });
+            choices.append(button);
+          }
+          box.append(choices);
+          const actions = el('div', 'reply-actions');
+          actions.append(el('button', 'btn ghost', 'not now'), raiseButton());
+          box.append(actions);
+          return box;
+        }
+
+        if (section.replyForm === 'approval') {
+          box.append(el('div', 'reply-hint', 'One click. A note only if you want one.'));
+          const actions = el('div', 'reply-actions');
+          const yes = el('button', 'btn primary', 'go ahead');
+          const no = el('button', 'btn', 'no');
+          for (const [button, answer] of [
+            [yes, 'go ahead'],
+            [no, 'no'],
+          ]) {
+            button.addEventListener('click', () => {
+              section.state = 'answered';
+              section.answer = answer;
+              section.answeredBy = PERSON;
+              render();
+            });
+          }
+          actions.append(yes, no, el('button', 'btn ghost', 'not now'), raiseButton());
+          box.append(actions);
+          box.append(el('input', 'field', undefined));
+          box.lastChild.placeholder = 'a note, if it needs one';
+          box.lastChild.style.minHeight = 'auto';
+          box.lastChild.style.marginTop = '8px';
+          return box;
+        }
+
+        if (section.replyForm === 'external_tool') {
+          box.append(el('div', 'reply-hint', 'Done elsewhere. Opens in a tab; settle it here.'));
+          const actions = el('div', 'reply-actions');
+          const link = el('a', 'link-out', `open ${new URL(section.link).host} ↗`);
+          link.href = section.link;
+          link.target = '_blank';
+          link.rel = 'noreferrer';
+          actions.append(link, el('button', 'btn', 'done, and answered'), raiseButton());
+          box.append(actions);
+          return box;
+        }
+
+        const field = el('textarea', 'field');
+        field.placeholder = 'your answer';
+        box.append(el('div', 'reply-hint', 'Written answer.'), field);
+        const actions = el('div', 'reply-actions');
+        actions.append(
+          el('button', 'btn primary', 'reply'),
+          el('button', 'btn ghost', 'not now'),
+          raiseButton(),
+        );
+        box.append(actions);
+        return box;
+      }
+
+      function raiseButton() {
+        const button = el('button', 'btn ghost raise', '+ raise something else');
+        button.title =
+          'A thought that has nothing to do with this. It becomes its own item, and remembers it came from here.';
+        return button;
+      }
+
+      function renderDetail() {
+        const detail = document.getElementById('detail');
+        detail.replaceChildren();
+
+        const item = items.find((i) => i.id === state.selected);
+
+        if (item === undefined) {
+          const empty = el('div', 'detail-empty');
+          empty.append(
+            el('p', null, 'Nothing selected.'),
+            el(
+              'p',
+              null,
+              'The list is ordered so that the thing waiting longest is already at the top. It does not suggest what to do next; that was deliberate.',
+            ),
+          );
+          detail.append(empty);
+          return;
+        }
+
+        const head = el('div', 'detail-head');
+        head.append(el('h1', null, item.summary));
+
+        const labels = el('div', 'labels');
+        labels.append(el('span', 'label', item.sender));
+        for (const [key, value] of Object.entries(item.attribution)) {
+          labels.append(el('span', 'label', `${key}=${value}`));
+        }
+        if (item.closed) labels.append(el('span', 'label', 'closed'));
+        head.append(labels);
+        detail.append(head);
+
+        const scroll = el('div', 'scroll');
+        const sections = el('div', 'sections');
+
+        for (const section of item.sections) {
+          const node = el('div', 'section');
+          const header = el('div', 'section-head');
+          header.append(el('span', 'kind', section.kind));
+          if (section.state !== undefined) {
+            header.append(el('span', `state ${section.state}`, section.state.replace('_', ' ')));
+          }
+          if (section.recipient !== undefined) {
+            header.append(el('span', 'to', `→ ${section.recipient ?? 'anyone'}`));
+          }
+          node.append(header, el('div', 'body', section.body));
+
+          if (section.replyForm !== undefined) node.append(replyControls(section));
+
+          sections.append(node);
+        }
+
+        scroll.append(sections);
+        detail.append(scroll);
+      }
+
+      // ------------------------------------------------------------ activity
+
+      function renderActivity() {
+        const region = document.getElementById('activity');
+        region.replaceChildren();
+
+        for (const line of activity) {
+          const node = el('div', `activity-line${line.fresh ? ' fresh' : ''}`);
+          node.append(el('time', null, clock(line.at)));
+          const body = el('div');
+          body.append(el('span', 'activity-who', line.who), el('span', null, line.text));
+          node.append(body);
+          region.append(node);
+        }
+
+        document.getElementById('activity-foot').textContent =
+          `${activity.length} lines · kept for a month`;
+      }
+
+      function toast(line, needsAnswer) {
+        const node = el('div', `toast${needsAnswer ? ' needs-answer' : ''}`);
+        node.append(el('small', null, line.who), el('span', null, line.text));
+        document.getElementById('toasts').append(node);
+        setTimeout(() => node.remove(), 5200);
+      }
+
+      // ---------------------------------------------------------------- boot
+
+      function render() {
+        renderList();
+        renderDetail();
+        renderActivity();
+      }
+
+      for (const group of document.querySelectorAll('.chip-group')) {
+        group.addEventListener('click', (event) => {
+          const chip = event.target.closest('.chip');
+          if (chip === null) return;
+
+          const kind = group.dataset.filter;
+          const value = chip.dataset.value;
+
+          if (kind === 'attribution') {
+            state.filters.attribution = state.filters.attribution === value ? null : value;
+          } else {
+            state.filters[kind] = value;
+          }
+
+          for (const other of group.querySelectorAll('.chip')) {
+            other.setAttribute(
+              'aria-pressed',
+              String(
+                kind === 'attribution'
+                  ? other.dataset.value === state.filters.attribution
+                  : other.dataset.value === state.filters[kind],
+              ),
+            );
+          }
+
+          render();
+        });
+      }
+
+      document.getElementById('search').addEventListener('input', (event) => {
+        state.search = event.target.value;
+        render();
+      });
+
+      render();
+
+      // Activity arrives while you are looking at something else. Each line
+      // toasts once and stays in the region; none of it is a notification.
+      let next = 0;
+      setInterval(() => {
+        if (next >= arriving.length) return;
+        const line = { ...arriving[next++], at: new Date(), fresh: true };
+        activity.unshift(line);
+        renderActivity();
+        toast(line, false);
+      }, 6000);
+
+      // And one thing that does become unanswered, which is the only kind of
+      // event a notification ever fires for.
+      setTimeout(() => {
+        const item = {
+          id: '019ff700-9999-7000-8000-00000000aa09',
+          summary: 'ひとつ判断がいる: 3 件目のテスト',
+          sender: 'session:worker-2',
+          attribution: { repository: 'fuda', machine: 'd1' },
+          read: false,
+          waitingSince: new Date(),
+          sections: [
+            {
+              kind: 'report',
+              body: '2 件は timing だった。3 件目は違う。',
+            },
+            {
+              kind: 'question',
+              replyForm: 'choice',
+              recipient: PERSON,
+              state: 'unanswered',
+              body: '3 件目をどう扱うか。',
+              options: [
+                { value: 'fix', label: 'いま直す' },
+                { value: 'issue', label: 'issue にして後で' },
+              ],
+            },
+          ],
+        };
+        items.push(item);
+        render();
+        toast({ who: 'session:worker-2', text: '判断待ちが 1 件増えた — これは通知も飛ぶ' }, true);
+      }, 14000);
+    </script>
+  </body>
+</html>
