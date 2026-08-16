@@ -3,6 +3,7 @@ import { createApp } from '../app.ts';
 import { assertDisposable } from '../db/disposable.ts';
 import { createDatabase, type Database } from '../db/client.ts';
 import { runMigrations } from '../db/migrate.ts';
+import { createAnsweringRepository } from '../repository/answering.ts';
 import { createItemRepository } from '../repository/items.ts';
 
 const url = process.env['FUDA_TEST_DATABASE_URL'];
@@ -32,6 +33,7 @@ describe.skipIf(!url)('items over HTTP', () => {
     app = createApp({
       probeDatabase: database.probe,
       repository: createItemRepository(database),
+      answering: createAnsweringRepository(database),
       personIdentity: 'person',
     });
   });

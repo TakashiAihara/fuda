@@ -253,7 +253,13 @@ Configuration is two environment variables: the server URL and the sender.
 
 ## 6. Web
 
-One screen. List on the left, selected item on the right. React, Vite, TanStack Query, SSE for push. Built to static files and served by the server.
+One screen. The list, the selected item, and the activity arriving. React, Vite, TanStack Query, SSE for push. Built to static files and served by the server.
+
+`docs/design/02-one-screen.html` is what it looks like: one self-contained page, fake data, no build. It was drawn before any of this existed so that the shape could be argued with cheaply, and it stays as the visual reference rather than becoming the implementation.
+
+Keeping it as-is and growing it was a real option — it already renders every state in about six hundred lines of plain DOM, and it would have kept the "no build step" property. React was chosen anyway, and the reason is not the number of screens (there is one) but the direction the work grows in. What accumulates here is *states*, not pages: fourteen already, and each reply form then gains sending, failed-and-rolled-back, and answered-by-someone-else-while-you-were-looking. Hand-rolled DOM is where that becomes a pile of conditionals nobody can change safely.
+
+So the three things that decided it, in order: how easily a change can be made without breaking a neighbouring state, how readable it stays as those states multiply, and types that reach from the schema to the rendered element. The last is why the reply shapes live in `@fuda/core` rather than in the browser — one definition, used by the server to validate and by the screen to render.
 
 - Detail pane renders section bodies as markdown, read-only, no raw HTML
 - Choices are buttons, approval is one click plus an optional note, free text is a field, external tool is a link out plus a one-click "done"

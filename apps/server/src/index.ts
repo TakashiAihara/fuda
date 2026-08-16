@@ -2,6 +2,7 @@ import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { createDatabase } from './db/client.ts';
 import { runMigrations } from './db/migrate.ts';
+import { createAnsweringRepository } from './repository/answering.ts';
 import { createItemRepository } from './repository/items.ts';
 
 const config = loadConfig(process.env);
@@ -12,6 +13,7 @@ await runMigrations(database);
 const app = createApp({
   probeDatabase: database.probe,
   repository: createItemRepository(database),
+  answering: createAnsweringRepository(database),
   personIdentity: config.personIdentity,
 });
 
