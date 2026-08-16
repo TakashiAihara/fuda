@@ -1,0 +1,23 @@
+{
+  "name": "@fuda/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "db:migrate": "bun run src/db/migrate-cli.ts",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@fuda/core": "workspace:*",
+    "drizzle-orm": "^0.44.7",
+    "hono": "^4.10.4",
+    "postgres": "^3.4.7",
+    "zod": "^4.1.14"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.6"
+  }
+}
