@@ -1,6 +1,7 @@
 import { createApp } from './app.ts';
 import { loadConfig } from './config.ts';
 import { createDatabase } from './db/client.ts';
+import { createChanges } from './events.ts';
 import { runMigrations } from './db/migrate.ts';
 import { createAnsweringRepository } from './repository/answering.ts';
 import { createItemRepository } from './repository/items.ts';
@@ -14,6 +15,7 @@ const app = createApp({
   probeDatabase: database.probe,
   repository: createItemRepository(database),
   answering: createAnsweringRepository(database),
+  changes: createChanges(),
   personIdentity: config.personIdentity,
 });
 

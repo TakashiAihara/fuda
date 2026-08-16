@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app.ts';
+import { createChanges } from './events.ts';
 import type { AnsweringRepository } from './repository/answering.ts';
 import type { ItemRepository } from './repository/items.ts';
 
@@ -14,6 +15,7 @@ describe('GET /health', () => {
       probeDatabase: async () => true,
       repository: noRepository,
       answering: noAnswering,
+      changes: createChanges(),
       personIdentity: 'person',
     });
 
@@ -28,6 +30,7 @@ describe('GET /health', () => {
       probeDatabase: async () => false,
       repository: noRepository,
       answering: noAnswering,
+      changes: createChanges(),
       personIdentity: 'person',
     });
 
@@ -48,6 +51,7 @@ describe('GET /health', () => {
       },
       repository: noRepository,
       answering: noAnswering,
+      changes: createChanges(),
       personIdentity: 'person',
     });
 

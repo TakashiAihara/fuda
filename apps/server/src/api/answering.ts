@@ -1,5 +1,6 @@
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
+import type { Changes } from '../events.ts';
 import type { AnsweringRepository, Refusal } from '../repository/answering.ts';
 import type { ItemRepository } from '../repository/items.ts';
 
@@ -7,6 +8,7 @@ export type AnsweringRoutesDependencies = {
   answering: AnsweringRepository;
   items: ItemRepository;
   personIdentity: string;
+  changes: Changes;
 };
 
 /** The browser omits it and gets the person; an agent names itself. */
@@ -40,6 +42,12 @@ export function createAnsweringRoutes(deps: AnsweringRoutesDependencies) {
 
     if (!result.ok) return c.json({ error: result.message, reason: result.reason }, status[result.reason]);
 
+    deps.changes.publish({
+      type: 'section.advanced',
+      itemId: result.value.itemId,
+      sectionId: result.value.id,
+    });
+
     return c.json(result.value);
   });
 
@@ -56,6 +64,12 @@ export function createAnsweringRoutes(deps: AnsweringRoutesDependencies) {
         return c.json({ error: result.message, reason: result.reason }, status[result.reason]);
       }
 
+      deps.changes.publish({
+        type: 'section.advanced',
+        itemId: result.value.itemId,
+        sectionId: result.value.id,
+      });
+
       return c.json(result.value);
     });
   }
@@ -64,6 +78,8 @@ export function createAnsweringRoutes(deps: AnsweringRoutesDependencies) {
     const result = await deps.answering.markRead(c.req.param('id'));
 
     if (!result.ok) return c.json({ error: result.message, reason: result.reason }, status[result.reason]);
+
+    deps.changes.publish({ type: 'item.read', itemId: result.value.id });
 
     return c.json(result.value);
   });
@@ -74,6 +90,8 @@ export function createAnsweringRoutes(deps: AnsweringRoutesDependencies) {
     const result = await deps.answering.close(c.req.param('id'), sender, deps.personIdentity);
 
     if (!result.ok) return c.json({ error: result.message, reason: result.reason }, status[result.reason]);
+
+    deps.changes.publish({ type: 'item.closed', itemId: result.value.id });
 
     return c.json(result.value);
   });

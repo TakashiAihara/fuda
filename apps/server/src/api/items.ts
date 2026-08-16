@@ -1,12 +1,14 @@
 import { itemInputSchema } from '@fuda/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
+import type { Changes } from '../events.ts';
 import type { ItemRepository } from '../repository/items.ts';
 
 export type ItemRoutesDependencies = {
   repository: ItemRepository;
   /** Stamped as the sender on anything arriving without one — the browser. */
   personIdentity: string;
+  changes: Changes;
 };
 
 /**
@@ -55,6 +57,8 @@ export function createItemRoutes(deps: ItemRoutesDependencies) {
       ...parsed.data,
       sender: parsed.data.sender ?? deps.personIdentity,
     });
+
+    deps.changes.publish({ type: 'item.written', itemId: written.id });
 
     return c.json(written, 201);
   });

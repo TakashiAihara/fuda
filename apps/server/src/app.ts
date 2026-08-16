@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { createAnsweringRoutes } from './api/answering.ts';
+import { createEventRoutes } from './api/events.ts';
 import { createItemRoutes } from './api/items.ts';
+import type { Changes } from './events.ts';
 import type { AnsweringRepository } from './repository/answering.ts';
 import type { ItemRepository } from './repository/items.ts';
 
@@ -9,6 +11,7 @@ export type AppDependencies = {
   probeDatabase: () => Promise<boolean>;
   repository: ItemRepository;
   answering: AnsweringRepository;
+  changes: Changes;
   /** Stamped as the sender on anything the browser sends. */
   personIdentity: string;
 };
@@ -33,15 +36,24 @@ export function createApp(deps: AppDependencies) {
     );
   });
 
-  app.route('/api', createItemRoutes({ repository: deps.repository, personIdentity: deps.personIdentity }));
+  app.route(
+    '/api',
+    createItemRoutes({
+      repository: deps.repository,
+      personIdentity: deps.personIdentity,
+      changes: deps.changes,
+    }),
+  );
   app.route(
     '/api',
     createAnsweringRoutes({
       answering: deps.answering,
       items: deps.repository,
       personIdentity: deps.personIdentity,
+      changes: deps.changes,
     }),
   );
+  app.route('/api', createEventRoutes(deps.changes));
 
   return app;
 }

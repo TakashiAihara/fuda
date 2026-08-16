@@ -3,6 +3,7 @@ import { createApp } from '../app.ts';
 import { assertDisposable } from '../db/disposable.ts';
 import { createDatabase, type Database } from '../db/client.ts';
 import { runMigrations } from '../db/migrate.ts';
+import { createChanges } from '../events.ts';
 import { createAnsweringRepository } from '../repository/answering.ts';
 import { createItemRepository } from '../repository/items.ts';
 
@@ -34,6 +35,7 @@ describe.skipIf(!url)('items over HTTP', () => {
       probeDatabase: database.probe,
       repository: createItemRepository(database),
       answering: createAnsweringRepository(database),
+      changes: createChanges(),
       personIdentity: 'person',
     });
   });
