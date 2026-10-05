@@ -1,6 +1,6 @@
 import type { SectionOption } from '@fuda/core';
 import { describe, expect, it } from 'vitest';
-import { answerableBy, choiceAnswer, choiceShown } from './choice.ts';
+import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 
 const options: SectionOption[] = [
   { value: 'throw', label: 'raise an exception' },
@@ -66,7 +66,10 @@ describe('who may answer it', () => {
     // The same rule the server applies: an unaddressed request is whichever
     // one reaches it first.
     expect(answerableBy(null, 'person')).toBe(true);
-    expect(answerableBy(null, null)).toBe(true);
+  });
+
+  it('claims nothing addressed to nobody while who the person is has not arrived', () => {
+    expect(answerableBy(null, null)).toBe(false);
   });
 
   it('does not let the person answer what is addressed to somebody else', () => {
@@ -77,5 +80,23 @@ describe('who may answer it', () => {
     // The name is configuration. Guessing it would show the wrong controls and
     // then have the server refuse them.
     expect(answerableBy('person', null)).toBe(false);
+  });
+});
+
+describe('which key press sends the other field', () => {
+  it('sends on a plain Enter', () => {
+    expect(sendsOnKey('Enter', false, 13)).toBe(true);
+  });
+
+  it('does not send on the Enter that confirms a conversion', () => {
+    expect(sendsOnKey('Enter', true, 13)).toBe(false);
+  });
+
+  it('does not send on the Enter Safari reports as keyCode 229', () => {
+    expect(sendsOnKey('Enter', false, 229)).toBe(false);
+  });
+
+  it('does not send on any other key', () => {
+    expect(sendsOnKey('a', false, 65)).toBe(false);
   });
 });

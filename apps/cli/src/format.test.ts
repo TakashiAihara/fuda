@@ -169,6 +169,7 @@ describe('the answer', () => {
         '    which name?',
         '    - a: pickup',
         '    - b: claim',
+        '    answered by person:',
         '    note: neither — the third file',
       ].join('\n'),
     );

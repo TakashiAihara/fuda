@@ -90,7 +90,7 @@ jobs:
           page=$(curl -fsS http://localhost:8787/)
           # The source index.html has the same root element, so only fetching a
           # built asset shows that the bundle, not the template, is being served.
-          asset=$(printf '%s' "$page" | grep -o '/assets/[^"]*\.js' | head -n 1)
+          asset=$(printf '%s' "$page" | grep -o -m 1 '/assets/[^"]*\.js')
           test -n "$asset"
           curl -fsS -o /dev/null "http://localhost:8787$asset"
 

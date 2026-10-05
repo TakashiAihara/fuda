@@ -101,8 +101,7 @@ const bodyBase = z.object({ text: nonEmpty });
  */
 const linkSchema = z.url({
   protocol: /^https?$/,
-  error:
-    'a link has to be an http or https URL; the screen puts it in an href, and any other scheme runs as script',
+  error: 'a link has to be an http or https URL',
 });
 
 /**
