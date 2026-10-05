@@ -1,6 +1,6 @@
 import type { SectionOption } from '@fuda/core';
 import { describe, expect, it } from 'vitest';
-import { choiceAnswer, choiceShown } from './choice.ts';
+import { answerableBy, choiceAnswer, choiceShown } from './choice.ts';
 
 const options: SectionOption[] = [
   { value: 'throw', label: 'raise an exception' },
@@ -54,5 +54,28 @@ describe('what an answered choice reads as', () => {
   it('has nothing to say about a choice nobody answered', () => {
     expect(choiceShown(options, null)).toBeNull();
     expect(choiceShown(options, {})).toBeNull();
+  });
+});
+
+describe('who may answer it', () => {
+  it('lets the person answer what is addressed to them', () => {
+    expect(answerableBy('person', 'person')).toBe(true);
+  });
+
+  it('lets anybody answer what is addressed to nobody', () => {
+    // The same rule the server applies: an unaddressed request is whichever
+    // one reaches it first.
+    expect(answerableBy(null, 'person')).toBe(true);
+    expect(answerableBy(null, null)).toBe(true);
+  });
+
+  it('does not let the person answer what is addressed to somebody else', () => {
+    expect(answerableBy('session:worker', 'person')).toBe(false);
+  });
+
+  it('claims nothing while who the person is has not arrived', () => {
+    // The name is configuration. Guessing it would show the wrong controls and
+    // then have the server refuse them.
+    expect(answerableBy('person', null)).toBe(false);
   });
 });

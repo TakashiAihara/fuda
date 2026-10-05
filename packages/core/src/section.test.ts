@@ -141,9 +141,10 @@ describe('what a section has to carry', () => {
     expect(sectionInputSchema.safeParse(oneOption).success).toBe(false);
   });
 
-  it('takes a choice of two options and of five', () => {
-    // Two is the least that is still a choice, five the most anybody reads.
-    for (const count of [2, 5]) {
+  it('takes a choice of two options and of many', () => {
+    // Two is the least that is still a choice. There is no most: a question
+    // can honestly have more answers than fit a rule of thumb.
+    for (const count of [2, 5, 6, 12]) {
       const choice = sectionInputSchema.safeParse({
         kind: 'question',
         replyForm: 'choice',
@@ -152,19 +153,6 @@ describe('what a section has to carry', () => {
 
       expect(choice.success).toBe(true);
     }
-  });
-
-  it('refuses a choice of six options', () => {
-    // Past five nobody picks one, so the extra questions have to be asked as
-    // their own rather than buried in a list of six.
-    const result = sectionInputSchema.safeParse({
-      kind: 'question',
-      replyForm: 'choice',
-      body: { text: 'which name?', options: offered(6) },
-    });
-
-    expect(result.success).toBe(false);
-    expect(result.success === false && result.error.issues[0]?.message).toContain('at most five');
   });
 
   it('takes one recommended option, but only as the first one', () => {
@@ -254,6 +242,23 @@ describe('what a section has to carry', () => {
     expect(sectionInputSchema.safeParse(odd).success).toBe(true);
   });
 
+  it('leaves a repeated option value on a section that asks for no answer alone', () => {
+    // Same reasoning as the rule above: only an answer has to name one of the
+    // options, and nothing is being answered here.
+    const record = {
+      kind: 'report',
+      body: {
+        text: 'the two files, listed twice for the record',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'a', label: 'claim' },
+        ],
+      },
+    };
+
+    expect(sectionInputSchema.safeParse(record).success).toBe(true);
+  });
+
   it('refuses an external tool section with nowhere to go', () => {
     const noLink = { kind: 'question', replyForm: 'external_tool', body: { text: 'review this' } };
 
@@ -269,6 +274,35 @@ describe('what a section has to carry', () => {
 
     expect(sectionInputSchema.safeParse(withLink).success).toBe(true);
   });
+
+  it.each(['https://example.com/run', 'http://192.168.0.151:4310'])('takes the link %s', (link) => {
+    const linked = {
+      kind: 'question',
+      replyForm: 'external_tool',
+      body: { text: 'review this', link },
+    };
+
+    expect(sectionInputSchema.safeParse(linked).success).toBe(true);
+  });
+
+  it.each(['javascript:alert(1)', 'data:text/html,<h1>hello', 'file:///etc/passwd'])(
+    'refuses the link %s',
+    (link) => {
+      // The screen puts the link in an href, so anything that is not http runs
+      // or reads on the machine of whoever clicks it. The link is written by an
+      // agent, so it is not the person's own and cannot be trusted as one.
+      const result = sectionInputSchema.safeParse({
+        kind: 'question',
+        replyForm: 'external_tool',
+        body: { text: 'review this', link },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.success === false && result.error.issues[0]?.message).toBe(
+        'a link has to be an http or https URL; the screen puts it in an href, and any other scheme runs as script',
+      );
+    },
+  );
 
   it('allows combinations that do not occur in practice', () => {
     // The requirements refuse to encode prohibitions: they push the agent into

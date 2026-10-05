@@ -114,6 +114,17 @@ export function readItem(id: string): Promise<Item> {
   return asked<Item>(`/api/items/${encodeURIComponent(id)}`);
 }
 
+/**
+ * The read mark, set when the item is opened rather than when it arrives.
+ *
+ * A mark and not a state, so nothing waits on it and nothing is owed by it. The
+ * server keeps the first one it is given, which is what lets the screen ask
+ * once per open without having to work out whether it already did.
+ */
+export function markRead(id: string): Promise<Item> {
+  return asked<Item>(`/api/items/${encodeURIComponent(id)}/read`, { method: 'POST' });
+}
+
 /** The sender is left out on purpose; the server puts its own identity on it. */
 export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
   return asked(`/api/sections/${encodeURIComponent(sectionId)}/reply`, {
@@ -126,13 +137,14 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
 /**
  * What the person is told when an answer does not go through.
  *
- * Somebody answering while this screen was looking at it is not a failure to
- * retry — it is a reason to look again, so it says that rather than repeating
- * the server's wording, which is written for a caller rather than a reader.
+ * A 409 is the one refusal worth rephrasing: it means the section stopped
+ * waiting for an answer, and this screen cannot tell whether that was somebody
+ * answering or somebody postponing, so it says only what it knows — that the
+ * section moved while it was open, and that what is on screen has been reloaded.
  */
 export function complaint(error: unknown): string {
   if (error instanceof Refused && error.status === 409) {
-    return 'somebody else answered this while you were looking at it';
+    return 'this section changed while it was open, so it has been reloaded — have another look';
   }
 
   if (error instanceof Refused) return error.message;

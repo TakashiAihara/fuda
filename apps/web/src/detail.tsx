@@ -1,9 +1,27 @@
-import { useQuery } from '@tanstack/react-query';
-import { readItem } from './api.ts';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { markRead, readItem } from './api.ts';
 import { Section } from './section.tsx';
 
-export function Detail({ id }: { id: string }) {
+export function Detail({ id, person }: { id: string; person: string | null }) {
   const item = useQuery({ queryKey: ['item', id], queryFn: () => readItem(id) });
+  const client = useQueryClient();
+  const marked = useRef<string | null>(null);
+
+  const read = useMutation({
+    mutationFn: () => markRead(id),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['items'] }),
+  });
+
+  useEffect(() => {
+    // Keyed on the id rather than on `readAt`, because only the list is
+    // invalidated and so the item on screen keeps saying it was never opened.
+    if (item.data === undefined || item.data.readAt !== null) return;
+    if (marked.current === id) return;
+
+    marked.current = id;
+    read.mutate();
+  }, [id, item.data, read]);
 
   if (item.isError) return <p className="detail-empty">{item.error.message}</p>;
   if (item.data === undefined) return <p className="detail-empty">opening…</p>;
@@ -25,7 +43,7 @@ export function Detail({ id }: { id: string }) {
       <div className="scroll">
         <div className="sections">
           {item.data.sections.map((section) => (
-            <Section key={section.id} section={section} />
+            <Section key={section.id} section={section} person={person} />
           ))}
         </div>
       </div>

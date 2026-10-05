@@ -139,7 +139,18 @@ describe('the answer', () => {
     // value alone would leave the agent guessing which label it stands for.
     const answered = section({ state: 'answered', reply: { option: 'b' }, answeredBy: 'person' });
 
-    expect(formatItem(item([answered]))).toContain('answered by person: claim');
+    expect(formatItem(item([answered]))).toBe(
+      [
+        '019ff5f5-a041-7cae-b500-fd404389867a  which name?',
+        'from pm',
+        '',
+        '  [019ff642-1111-7000-8000-00000000000a] question (choice) — answered → person',
+        '    which name?',
+        '    - a: pickup',
+        '    - b: claim',
+        '    answered by person: claim',
+      ].join('\n'),
+    );
   });
 
   it('reads a note on its own, which is all the answer there is', () => {
@@ -149,20 +160,42 @@ describe('the answer', () => {
       answeredBy: 'person',
     });
 
-    expect(formatItem(item([answered]))).toContain('answered by person: neither — the third file');
+    expect(formatItem(item([answered]))).toBe(
+      [
+        '019ff5f5-a041-7cae-b500-fd404389867a  which name?',
+        'from pm',
+        '',
+        '  [019ff642-1111-7000-8000-00000000000a] question (choice) — answered → person',
+        '    which name?',
+        '    - a: pickup',
+        '    - b: claim',
+        '    note: neither — the third file',
+      ].join('\n'),
+    );
   });
 
-  it('shows an option and a note together', () => {
+  it('puts a note on its own line, so the option is not read as part of it', () => {
+    // On one line, `claim — but rename it` cannot be split by whoever reads it:
+    // both halves are its own wording, and one of them is a command.
     const answered = section({
       state: 'answered',
       reply: { option: 'b', note: 'but rename it' },
       answeredBy: 'person',
     });
 
-    const text = formatItem(item([answered]));
-
-    expect(text).toContain('answered by person: claim');
-    expect(text).toContain('but rename it');
+    expect(formatItem(item([answered]))).toBe(
+      [
+        '019ff5f5-a041-7cae-b500-fd404389867a  which name?',
+        'from pm',
+        '',
+        '  [019ff642-1111-7000-8000-00000000000a] question (choice) — answered → person',
+        '    which name?',
+        '    - a: pickup',
+        '    - b: claim',
+        '    answered by person: claim',
+        '    note: but rename it',
+      ].join('\n'),
+    );
   });
 
   it('says nothing about an answer that was never given', () => {

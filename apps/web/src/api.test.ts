@@ -11,11 +11,11 @@ describe('what a refused answer says', () => {
     );
   });
 
-  it('says that somebody got there first when the server says so', () => {
-    // Different from a refusal on the rules: the answer to this one is to look
-    // again, not to argue with it.
+  it('says the section changed rather than who changed it', () => {
+    // A 409 does not say whether somebody answered it or somebody postponed it,
+    // so naming either would be a guess about another actor's intent.
     expect(complaint(new Refused(409, 'this is no longer waiting for an answer'))).toBe(
-      'somebody else answered this while you were looking at it',
+      'this section changed while it was open, so it has been reloaded — have another look',
     );
   });
 

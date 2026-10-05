@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { Section as Row } from './api.ts';
 import { complaint, Refused, sendReply } from './api.ts';
-import { choiceAnswer, choiceShown } from './choice.ts';
+import { answerableBy, choiceAnswer, choiceShown } from './choice.ts';
 
 /**
  * One section: what it says, and whatever can be done with it from here.
@@ -11,7 +11,7 @@ import { choiceAnswer, choiceShown } from './choice.ts';
  * Replying happens inside the detail pane. There is nowhere else to go, and a
  * round trip to somewhere else is the thing this project exists to remove.
  */
-export function Section({ section }: { section: Row }) {
+export function Section({ section, person }: { section: Row; person: string | null }) {
   return (
     <div className="section">
       <div className="section-head">
@@ -26,12 +26,16 @@ export function Section({ section }: { section: Row }) {
           decision worth making once rather than by accident. */}
       <div className="body">{section.body.text}</div>
 
-      {section.replyForm === 'choice' ? <Choice section={section} /> : <ReadOnly section={section} />}
+      {section.replyForm === 'choice' ? (
+        <Choice section={section} person={person} />
+      ) : (
+        <ReadOnly section={section} />
+      )}
     </div>
   );
 }
 
-function Choice({ section }: { section: Row }) {
+function Choice({ section, person }: { section: Row; person: string | null }) {
   const options = section.body.options ?? [];
   const client = useQueryClient();
   const [note, setNote] = useState('');
@@ -47,8 +51,8 @@ function Choice({ section }: { section: Row }) {
     onError: (error: unknown) => {
       setSaid(complaint(error));
 
-      // Somebody else answering is not a retry, it is a reason to look at what
-      // they wrote instead of at the buttons.
+      // Not a retry: the section is no longer waiting for an answer, so the
+      // screen is refetched rather than left holding buttons that keep failing.
       if (error instanceof Refused && error.status === 409) void client.invalidateQueries();
     },
   });
@@ -76,6 +80,14 @@ function Choice({ section }: { section: Row }) {
     );
   }
 
+  if (!answerableBy(section.recipient, person)) {
+    return (
+      <div className="reply">
+        <p className="reply-hint">Waiting on {section.recipient}. Nothing is owed by you.</p>
+      </div>
+    );
+  }
+
   const send = (option: string | null) => {
     const reply = choiceAnswer(option, note);
 
@@ -84,20 +96,23 @@ function Choice({ section }: { section: Row }) {
 
   return (
     <div className="reply">
-      <p className="reply-hint">Pick one, or write something else. Either one is the answer.</p>
+      <p className="reply-hint">
+        Pick one, or write something else instead — whatever is written below is sent with the option you
+        click.
+      </p>
 
       <div className="choices">
         {options.map((option) => (
           <button
             key={option.value}
-            className="btn"
+            className={option.recommended === true ? 'btn recommended-option' : 'btn'}
             disabled={answer.isPending}
             onClick={() => send(option.value)}
           >
             {option.label}
             {/* A mark, not a different button: the recommended option is one of
                 the options, and it is answered the same way. */}
-            {option.recommended === true ? <span className="recommended">recommended</span> : null}
+            {option.recommended === true ? <span className="recommended">★ recommended</span> : null}
           </button>
         ))}
       </div>
@@ -108,16 +123,26 @@ function Choice({ section }: { section: Row }) {
       <div className="other">
         <input
           className="field"
+          aria-label="something else"
           value={note}
           placeholder="something else, in your own words"
           disabled={answer.isPending}
           onChange={(event) => setNote(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') send(null);
+            // A Japanese IME confirms what it is converting with the same Enter
+            // that submits here, so submitting on it sends the reading rather
+            // than the word.
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing || answer.isPending) return;
+
+            send(null);
           }}
         />
         <div className="reply-actions">
-          <button className="btn primary" disabled={answer.isPending} onClick={() => send(null)}>
+          <button
+            className="btn primary"
+            disabled={answer.isPending || note.trim() === ''}
+            onClick={() => send(null)}
+          >
             send
           </button>
         </div>

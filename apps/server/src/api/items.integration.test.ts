@@ -123,11 +123,12 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(((await listed.json()) as { items: unknown[] }).items).toHaveLength(0);
   });
 
-  it('refuses a choice of six options', async () => {
-    // Past five nobody picks one, and the answer is a single value, so a sixth
-    // would be an option that is there to be skipped.
+  it('takes a choice of six options', async () => {
+    // There is no most. A question can honestly have more answers than a rule
+    // of thumb allows, and refusing them would push the agent into splitting
+    // one question into several.
     const written = await write({
-      summary: 'six ways is not a choice',
+      summary: 'six ways is still a choice',
       sender: 'session:01K6Ss',
       sections: [
         {
@@ -141,10 +142,7 @@ describe.skipIf(!url)('items over HTTP', () => {
       ],
     });
 
-    expect(written.status).toBe(400);
-    const problems = ((await written.json()) as { problems: { message: string }[] }).problems;
-
-    expect(problems.some((problem) => problem.message.includes('at most five'))).toBe(true);
+    expect(written.status).toBe(201);
   });
 
   it('leaves nothing behind when a write fails inside the database', async () => {
