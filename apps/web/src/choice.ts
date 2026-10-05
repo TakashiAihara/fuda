@@ -3,10 +3,11 @@ import type { ChoiceReply, SectionOption } from '@fuda/core';
 /**
  * What a click on an option, or a word in the other field, sends.
  *
- * The two are one answer rather than two things: the field is not "pick an
- * option and add a note to it", it is "or say something else", and either half
- * is a complete answer on its own. Nothing typed and nothing clicked is not an
- * answer, so it sends nothing.
+ * The field is not only a way of answering instead of an option: whatever is in
+ * it goes along with whichever option is clicked, because "the second one, but
+ * rename it" is one answer rather than two. A note on its own is still a whole
+ * answer — that is how something else reaches the agent. Nothing typed and
+ * nothing clicked is not an answer, so it sends nothing.
  *
  * Returned rather than sent, so the shape can be looked at without a server.
  */
@@ -35,4 +36,20 @@ export function choiceShown(options: readonly SectionOption[], reply: ChoiceRepl
   const parts = [clicked?.label ?? reply.option, reply.note].filter((part) => part !== undefined);
 
   return parts.length === 0 ? null : parts.join(' — ');
+}
+
+/**
+ * Whether this screen can answer this section, which follows who the section is
+ * addressed to rather than what kind of section it is.
+ *
+ * Addressed to nobody is anybody's, which is the same rule the server applies.
+ * A name that is not the person's is somebody else's to answer: the server
+ * refuses it, and a button that always fails is worse than a section that says
+ * who it is waiting on. An unknown person answers nothing — the name is fetched
+ * from the server rather than guessed, and until it arrives nothing is claimed.
+ */
+export function answerableBy(recipient: string | null, person: string | null): boolean {
+  if (recipient === null) return true;
+
+  return person !== null && recipient === person;
 }

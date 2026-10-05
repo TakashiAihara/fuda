@@ -45,6 +45,11 @@ export function formatList(items: ListedItem[]): string {
  * A choice reads by the label the person clicked. The value is the agent's own
  * name for the option, and a note on its own is the whole answer, so both have
  * to be shown or the reply comes back looking empty.
+ *
+ * The note is named and put on a line of its own rather than appended to the
+ * label. On one line an agent cannot tell the halves apart — both are free text
+ * and one of them is its own wording coming back — so it cannot tell what the
+ * person picked from what they said about it.
  */
 function formatAnswer(section: Section): string[] {
   const reply = section.reply;
@@ -60,16 +65,21 @@ function formatAnswer(section: Section): string[] {
 
   if ('text' in reply && reply.text !== undefined) said.push(reply.text);
   if ('decision' in reply && reply.decision !== undefined) said.push(reply.decision);
-  if ('note' in reply && reply.note !== undefined) said.push(reply.note);
+
+  const note = 'note' in reply && reply.note !== undefined ? reply.note : undefined;
 
   // An external tool settles with nothing to carry, and says so by its state.
   const [first, ...rest] = said.flatMap((part) => part.split('\n'));
 
-  if (first === undefined) return [];
+  if (first === undefined && note === undefined) return [];
 
   const by = section.answeredBy === null ? '' : ` by ${section.answeredBy}`;
 
-  return [`    answered${by}: ${first}`, ...rest.map((line) => `    ${line}`)];
+  return [
+    ...(first === undefined ? [] : [`    answered${by}: ${first}`]),
+    ...rest.map((line) => `    ${line}`),
+    ...(note === undefined ? [] : note.split('\n').map((line) => `    note: ${line}`)),
+  ];
 }
 
 function formatSection(section: Section): string {

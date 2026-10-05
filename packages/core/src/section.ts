@@ -94,13 +94,25 @@ export type SectionOption = z.infer<typeof optionSchema>;
 const bodyBase = z.object({ text: nonEmpty });
 
 /**
+ * Only the two schemes that navigate. The screen puts a link in an `href`, and
+ * a `javascript:` link runs as script in the screen when clicked, so the agent
+ * that writes an item could otherwise hand the person something to execute.
+ * A plain `z.url()` takes every scheme, so the check is here.
+ */
+const linkSchema = z.url({
+  protocol: /^https?$/,
+  error:
+    'a link has to be an http or https URL; the screen puts it in an href, and any other scheme runs as script',
+});
+
+/**
  * The varying half of a section. What it must carry depends on the reply form:
  * a choice without options cannot be answered, and an external tool without a
  * link points nowhere.
  */
 export const bodySchema = bodyBase.extend({
   options: z.array(optionSchema).optional(),
-  link: z.url().optional(),
+  link: linkSchema.optional(),
 });
 export type SectionBody = z.infer<typeof bodySchema>;
 
@@ -125,15 +137,6 @@ export const sectionInputSchema = z
         });
       }
 
-      if (options.length > 5) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['body', 'options'],
-          message:
-            'a choice offers at most five options — past that nobody picks one, so ask the rest as another question',
-        });
-      }
-
       const marked = options.flatMap((option, index) => (option.recommended === true ? [index] : []));
 
       if (marked.length > 1) {
@@ -153,17 +156,20 @@ export const sectionInputSchema = z
           message: 'the recommended option has to be the first one',
         });
       }
-    }
 
-    const values = options.map((option) => option.value);
-    const repeated = values.find((value, index) => values.indexOf(value) !== index);
+      // Inside the branch with the rest of the option rules, because all of
+      // them are about being answered: a report that names the same thing twice
+      // for the record is not refused for it.
+      const values = options.map((option) => option.value);
+      const repeated = values.find((value, index) => values.indexOf(value) !== index);
 
-    if (repeated !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['body', 'options'],
-        message: `${repeated} is offered twice, and an answer can only name one of them`,
-      });
+      if (repeated !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['body', 'options'],
+          message: `${repeated} is offered twice, and an answer can only name one of them`,
+        });
+      }
     }
 
     if (section.replyForm === 'external_tool' && section.body.link === undefined) {

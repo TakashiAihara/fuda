@@ -34,7 +34,14 @@ export function App() {
       </section>
 
       <section className="region" aria-label="the selected item">
-        {selected === null ? <NothingSelected /> : <Detail id={selected} />}
+        {selected === null ? (
+          <NothingSelected />
+        ) : (
+          // Null rather than a placeholder name: which sections this person can
+          // answer is decided by that name, and it is better to show none of
+          // them than to show the wrong ones until it arrives.
+          <Detail id={selected} person={who.data ?? null} />
+        )}
       </section>
     </div>
   );
