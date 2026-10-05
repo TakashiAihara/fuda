@@ -68,10 +68,9 @@ function formatAnswer(section: Section): string[] {
 
   const note = 'note' in reply && reply.note !== undefined ? reply.note : undefined;
 
-  // An external tool settles with nothing to carry, and says so by its state.
+  // An external tool settles with nothing to carry, and still gets the line,
+  // because who settled it is recorded and the agent has no other way to see it.
   const [first, ...rest] = said.flatMap((part) => part.split('\n'));
-
-  if (first === undefined && note === undefined) return [];
 
   const by = section.answeredBy === null ? '' : ` by ${section.answeredBy}`;
 

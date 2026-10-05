@@ -6,27 +6,26 @@ import { Section } from './section.tsx';
 export function Detail({ id, person }: { id: string; person: string | null }) {
   const item = useQuery({ queryKey: ['item', id], queryFn: () => readItem(id) });
   const client = useQueryClient();
-  const marked = useRef<string | null>(null);
+  // Every item this screen has asked to mark, kept for as long as the screen is
+  // open. One attempt per item: a mark that fails stays unread until the page
+  // is reloaded, which is cheaper than a retry loop against a failing server.
+  const marked = useRef(new Set<string>());
 
-  const read = useMutation({
-    mutationFn: () => markRead(id),
-    onSuccess: () => void client.invalidateQueries({ queryKey: ['items'] }),
-    // Forgotten on failure, so the next refetch of the item tries again rather
-    // than leaving it unread for as long as it stays selected.
-    onError: () => {
-      marked.current = null;
+  const { mutate: markAsRead } = useMutation({
+    mutationFn: (target: string) => markRead(target),
+    onSuccess: (_, target) => {
+      void client.invalidateQueries({ queryKey: ['items'] });
+      void client.invalidateQueries({ queryKey: ['item', target] });
     },
   });
 
   useEffect(() => {
-    // Keyed on the id rather than on `readAt`, because only the list is
-    // invalidated and so the item on screen keeps saying it was never opened.
     if (item.data === undefined || item.data.readAt !== null) return;
-    if (marked.current === id) return;
+    if (marked.current.has(id)) return;
 
-    marked.current = id;
-    read.mutate();
-  }, [id, item.data, read]);
+    marked.current.add(id);
+    markAsRead(id);
+  }, [id, item.data, markAsRead]);
 
   if (item.isError) return <p className="detail-empty">{item.error.message}</p>;
   if (item.data === undefined) return <p className="detail-empty">opening…</p>;
