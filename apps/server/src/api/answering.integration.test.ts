@@ -118,6 +118,49 @@ describe.skipIf(!url)('answering over HTTP', () => {
       expect(response.status).toBe(400);
     });
 
+    it('takes a note on its own, which is how something else is answered', async () => {
+      const item = await write([
+        question({
+          replyForm: 'choice',
+          body: {
+            text: 'which name?',
+            options: [
+              { value: 'pickup', label: 'pickup' },
+              { value: 'claim', label: 'claim' },
+            ],
+          },
+        }),
+      ]);
+
+      const response = await post(`/api/sections/${item.sections[0]?.id}/reply`, {
+        reply: { note: 'neither — the third file' },
+      });
+
+      expect(response.status).toBe(200);
+      const section = (await response.json()) as Section;
+      expect(section.state).toBe('answered');
+      expect(section.reply).toEqual({ note: 'neither — the third file' });
+    });
+
+    it('refuses an answer carrying neither an option nor a note', async () => {
+      const item = await write([
+        question({
+          replyForm: 'choice',
+          body: {
+            text: 'which name?',
+            options: [
+              { value: 'pickup', label: 'pickup' },
+              { value: 'claim', label: 'claim' },
+            ],
+          },
+        }),
+      ]);
+
+      const response = await post(`/api/sections/${item.sections[0]?.id}/reply`, { reply: {} });
+
+      expect(response.status).toBe(400);
+    });
+
     it('settles an external tool section with nothing to carry', async () => {
       const item = await write([
         question({

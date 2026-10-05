@@ -4,5 +4,5 @@
   "printWidth": 110,
   "insertFinalNewline": true,
 
-  "ignorePatterns": ["bun.lock", "**/*.md", "**/drizzle/**"]
+  "ignorePatterns": ["bun.lock", "**/*.md", "**/drizzle/**", "docs/design/*.html"]
 }

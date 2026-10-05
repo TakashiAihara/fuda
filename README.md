@@ -16,7 +16,7 @@ fuda gives them somewhere to live. The agent writes them; you read and answer th
 
 ## Status
 
-Early. An agent can write exchanges and read them back, through an HTTP API and through the `fuda` command. The browser screen, activity, pickup, MCP and notifications are not built yet.
+Early. An agent can write exchanges and read them back, through an HTTP API and through the `fuda` command. In the browser, a choice can be answered — with an option, or with something else in your own words — and the other reply forms are shown read-only. Activity, pickup, MCP and notifications are not built yet.
 
 - `docs/requirements.md` — what fuda is, decided
 - `docs/design/01-implementation-plan.md` — how it gets built, and what is done so far

@@ -13,7 +13,22 @@ const nonEmpty = z.string().trim().min(1);
 
 export const freeTextReplySchema = z.object({ text: nonEmpty });
 
-export const choiceReplySchema = z.object({ option: nonEmpty });
+/**
+ * `option` is one of the values offered; `note` is what the person wrote
+ * instead. The screen supplies the other field, so an answer is one of them or
+ * both — and neither alone is not an answer.
+ *
+ * A note on its own is a real answer, which is how "something else" reaches the
+ * agent without an option having to exist for it.
+ */
+export const choiceReplySchema = z
+  .object({
+    option: nonEmpty.optional(),
+    note: nonEmpty.optional(),
+  })
+  .refine((reply) => reply.option !== undefined || reply.note !== undefined, {
+    message: 'a choice is answered with one of the options, or with a note saying what instead',
+  });
 
 /**
  * `proceed` or `decline`, and a note only if there is one to make.
@@ -65,8 +80,8 @@ const problemOf = (error: z.ZodError): ReplyProblem => ({
 
 /**
  * Validates an answer against the section it answers — the form *and* the
- * body. A choice is only answerable with one of the options it offered, which
- * no schema built from the reply form alone can know.
+ * body. A choice is answerable with one of the options it offered, which no
+ * schema built from the reply form alone can know.
  */
 export function checkReply(
   replyForm: ReplyForm | null,
@@ -78,8 +93,8 @@ export function checkReply(
   }
 
   // Handled first and separately, because a choice is the one form whose
-  // validity depends on the section it answers and not only on its shape.
-  // Doing it here keeps the narrowing that tells us `option` exists.
+  // validity depends on the section it answers and not only on its shape: an
+  // option has to be one it offered, and a note does not.
   if (replyForm === 'choice') {
     const parsed = choiceReplySchema.safeParse(value ?? {});
 
@@ -87,7 +102,7 @@ export function checkReply(
 
     const offered = (body.options ?? []).map((option) => option.value);
 
-    if (!offered.includes(parsed.data.option)) {
+    if (parsed.data.option !== undefined && !offered.includes(parsed.data.option)) {
       return {
         ok: false,
         problem: { message: `${parsed.data.option} is not one of the options offered` },

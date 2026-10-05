@@ -11,6 +11,10 @@ import {
 
 const ANSWERING = REPLY_FORMS.filter((form) => form !== 'pickup');
 
+/** `count` distinct options, so a boundary can be written as a number. */
+const offered = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ value: `v${index}`, label: `label ${index}` }));
+
 describe('which state machine applies', () => {
   it('is decided by the reply form, not by the kind', () => {
     // A request that asks for an answer rather than to be taken runs the
@@ -137,6 +141,124 @@ describe('what a section has to carry', () => {
     expect(sectionInputSchema.safeParse(oneOption).success).toBe(false);
   });
 
+  it('takes a choice of two options and of many', () => {
+    // Two is the least that is still a choice. There is no most: a question
+    // can honestly have more answers than fit a rule of thumb.
+    for (const count of [2, 5, 6, 12]) {
+      const choice = sectionInputSchema.safeParse({
+        kind: 'question',
+        replyForm: 'choice',
+        body: { text: 'which name?', options: offered(count) },
+      });
+
+      expect(choice.success).toBe(true);
+    }
+  });
+
+  it('takes one recommended option, but only as the first one', () => {
+    const first = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup', recommended: true },
+          { value: 'b', label: 'claim' },
+        ],
+      },
+    });
+
+    expect(first.success).toBe(true);
+    expect(first.success && first.data.body.options?.[0]?.recommended).toBe(true);
+  });
+
+  it('refuses a recommended option that is not the first one', () => {
+    const result = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'b', label: 'claim', recommended: true },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error.issues[0]?.message).toContain('first one');
+  });
+
+  it('refuses two recommended options', () => {
+    const result = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup', recommended: true },
+          { value: 'b', label: 'claim', recommended: true },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error.issues[0]?.message).toContain('at most one');
+  });
+
+  it('refuses two options offered under the same value', () => {
+    // An answer names a value, so two labels sharing one are indistinguishable
+    // in the reply — which is the whole of what a choice reply carries.
+    const result = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'a', label: 'claim' },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error.issues[0]?.message).toContain('offered twice');
+  });
+
+  it('leaves options on a section that asks for no answer alone', () => {
+    // Every one of these rules is about being answered, so it belongs to a
+    // choice. A report that names its two ways is not refused for it.
+    const odd = {
+      kind: 'report',
+      body: {
+        text: 'the two ways, for the record',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'b', label: 'claim', recommended: true },
+        ],
+      },
+    };
+
+    expect(sectionInputSchema.safeParse(odd).success).toBe(true);
+  });
+
+  it('leaves a repeated option value on a section that asks for no answer alone', () => {
+    // Same reasoning as the rule above: only an answer has to name one of the
+    // options, and nothing is being answered here.
+    const record = {
+      kind: 'report',
+      body: {
+        text: 'the two files, listed twice for the record',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'a', label: 'claim' },
+        ],
+      },
+    };
+
+    expect(sectionInputSchema.safeParse(record).success).toBe(true);
+  });
+
   it('refuses an external tool section with nowhere to go', () => {
     const noLink = { kind: 'question', replyForm: 'external_tool', body: { text: 'review this' } };
 
@@ -152,6 +274,35 @@ describe('what a section has to carry', () => {
 
     expect(sectionInputSchema.safeParse(withLink).success).toBe(true);
   });
+
+  it.each(['https://example.com/run', 'http://192.168.0.151:4310'])('takes the link %s', (link) => {
+    const linked = {
+      kind: 'question',
+      replyForm: 'external_tool',
+      body: { text: 'review this', link },
+    };
+
+    expect(sectionInputSchema.safeParse(linked).success).toBe(true);
+  });
+
+  it.each(['javascript:alert(1)', 'data:text/html,<h1>hello', 'file:///etc/passwd'])(
+    'refuses the link %s',
+    (link) => {
+      // The link is written by an agent and clicked by the person, and
+      // `javascript:` runs in the screen when clicked. Only http and https are
+      // let through rather than listing what to refuse.
+      const result = sectionInputSchema.safeParse({
+        kind: 'question',
+        replyForm: 'external_tool',
+        body: { text: 'review this', link },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.success === false && result.error.issues[0]?.message).toBe(
+        'a link has to be an http or https URL',
+      );
+    },
+  );
 
   it('allows combinations that do not occur in practice', () => {
     // The requirements refuse to encode prohibitions: they push the agent into

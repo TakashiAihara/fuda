@@ -39,6 +39,50 @@ export function formatList(items: ListedItem[]): string {
     .join('\n');
 }
 
+/**
+ * What was answered, in words rather than the shape it was stored in.
+ *
+ * A choice reads by the label the person clicked. The value is the agent's own
+ * name for the option, and a note on its own is the whole answer, so both have
+ * to be shown or the reply comes back looking empty.
+ *
+ * The note is named and put on a line of its own rather than appended to the
+ * label. On one line an agent cannot tell the halves apart — both are free text
+ * and one of them is its own wording coming back — so it cannot tell what the
+ * person picked from what they said about it.
+ */
+function formatAnswer(section: Section): string[] {
+  const reply = section.reply;
+
+  if (reply === null) return [];
+
+  const said: string[] = [];
+
+  if ('option' in reply && reply.option !== undefined) {
+    const chosen = (section.body.options ?? []).find((option) => option.value === reply.option);
+    said.push(chosen?.label ?? reply.option);
+  }
+
+  if ('text' in reply && reply.text !== undefined) said.push(reply.text);
+  if ('decision' in reply && reply.decision !== undefined) said.push(reply.decision);
+
+  const note = 'note' in reply && reply.note !== undefined ? reply.note : undefined;
+
+  // An external tool settles with nothing to carry, and still gets the line,
+  // because who settled it is recorded and the agent has no other way to see it.
+  const [first, ...rest] = said.flatMap((part) => part.split('\n'));
+
+  const by = section.answeredBy === null ? '' : ` by ${section.answeredBy}`;
+
+  // Who answered is said even when the answer is only a note: with no recipient
+  // on the section, this line is the only place the agent learns who it was.
+  return [
+    `    answered${by}:${first === undefined ? '' : ` ${first}`}`,
+    ...rest.map((line) => `    ${line}`),
+    ...(note === undefined ? [] : note.split('\n').map((line) => `    note: ${line}`)),
+  ];
+}
+
 function formatSection(section: Section): string {
   const head = [
     section.kind,
@@ -48,7 +92,10 @@ function formatSection(section: Section): string {
   ].join(' ');
 
   const extras = [
-    ...(section.body.options ?? []).map((o) => `    - ${o.value}: ${o.label}`),
+    ...(section.body.options ?? []).map(
+      (option) =>
+        `    - ${option.value}: ${option.label}${option.recommended === true ? ' (recommended)' : ''}`,
+    ),
     ...(section.body.link === undefined ? [] : [`    link: ${section.body.link}`]),
   ];
 
@@ -56,6 +103,7 @@ function formatSection(section: Section): string {
     `  [${section.id}] ${head}`,
     ...section.body.text.split('\n').map((line) => `    ${line}`),
     ...extras,
+    ...formatAnswer(section),
   ].join('\n');
 }
 

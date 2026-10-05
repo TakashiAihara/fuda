@@ -123,6 +123,28 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(((await listed.json()) as { items: unknown[] }).items).toHaveLength(0);
   });
 
+  it('takes a choice of six options', async () => {
+    // There is no most. A question can honestly have more answers than a rule
+    // of thumb allows, and refusing them would push the agent into splitting
+    // one question into several.
+    const written = await write({
+      summary: 'six ways is still a choice',
+      sender: 'session:01K6Ss',
+      sections: [
+        {
+          kind: 'question',
+          replyForm: 'choice',
+          body: {
+            text: 'which?',
+            options: ['a', 'b', 'c', 'd', 'e', 'f'].map((value) => ({ value, label: value })),
+          },
+        },
+      ],
+    });
+
+    expect(written.status).toBe(201);
+  });
+
   it('leaves nothing behind when a write fails inside the database', async () => {
     // Raised from an item that does not exist. The schema is happy with it, so
     // the failure happens in PostgreSQL, and the question is whether a

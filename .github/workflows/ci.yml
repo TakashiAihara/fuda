@@ -31,6 +31,7 @@ jobs:
       - run: bun run lint
       - run: bun run fmt:check
       - run: bun run test
+      - run: bun run build:web
 
   integration:
     name: integration tests against PostgreSQL
@@ -82,6 +83,16 @@ jobs:
           response=$(curl -fsS http://localhost:8787/health)
           echo "$response"
           test "$response" = '{"status":"ok","database":"ok"}'
+
+      - name: the screen is served from the same origin
+        run: |
+          set -euo pipefail
+          page=$(curl -fsS http://localhost:8787/)
+          # The source index.html has the same root element, so only fetching a
+          # built asset shows that the bundle, not the template, is being served.
+          asset=$(printf '%s' "$page" | grep -o -m 1 '/assets/[^"]*\.js')
+          test -n "$asset"
+          curl -fsS -o /dev/null "http://localhost:8787$asset"
 
       - name: the migration ran
         run: |

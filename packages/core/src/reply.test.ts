@@ -48,6 +48,27 @@ describe('checking an answer against its section', () => {
     expect(result.ok === false && result.problem.message).toContain('not one of the options');
   });
 
+  it('takes a note on its own, which is how "something else" is sent', () => {
+    const result = checkReply('choice', withOptions, { note: 'neither — the third file' });
+
+    expect(result).toEqual({ ok: true, reply: { note: 'neither — the third file' } });
+  });
+
+  it('takes an option with a note alongside it', () => {
+    const result = checkReply('choice', withOptions, { option: 'claim', note: 'but rename it' });
+
+    expect(result).toEqual({ ok: true, reply: { option: 'claim', note: 'but rename it' } });
+  });
+
+  it('refuses an answer with neither an option nor a note', () => {
+    for (const empty of [{}, undefined]) {
+      const result = checkReply('choice', withOptions, empty);
+
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.problem.message).toContain('one of the options');
+    }
+  });
+
   it('takes a decision, with or without a note', () => {
     expect(checkReply('approval', plain, { decision: 'proceed' }).ok).toBe(true);
     expect(checkReply('approval', plain, { decision: 'decline', note: 'not yet' }).ok).toBe(true);
