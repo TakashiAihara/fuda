@@ -288,9 +288,9 @@ describe('what a section has to carry', () => {
   it.each(['javascript:alert(1)', 'data:text/html,<h1>hello', 'file:///etc/passwd'])(
     'refuses the link %s',
     (link) => {
-      // The screen puts the link in an href, so anything that is not http runs
-      // or reads on the machine of whoever clicks it. The link is written by an
-      // agent, so it is not the person's own and cannot be trusted as one.
+      // The link is written by an agent and clicked by the person, and
+      // `javascript:` runs in the screen when clicked. Only http and https are
+      // let through rather than listing what to refuse.
       const result = sectionInputSchema.safeParse({
         kind: 'question',
         replyForm: 'external_tool',
@@ -299,7 +299,7 @@ describe('what a section has to carry', () => {
 
       expect(result.success).toBe(false);
       expect(result.success === false && result.error.issues[0]?.message).toBe(
-        'a link has to be an http or https URL; the screen puts it in an href, and any other scheme runs as script',
+        'a link has to be an http or https URL',
       );
     },
   );

@@ -11,6 +11,11 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
   const read = useMutation({
     mutationFn: () => markRead(id),
     onSuccess: () => void client.invalidateQueries({ queryKey: ['items'] }),
+    // Forgotten on failure, so the next refetch of the item tries again rather
+    // than leaving it unread for as long as it stays selected.
+    onError: () => {
+      marked.current = null;
+    },
   });
 
   useEffect(() => {

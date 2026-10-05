@@ -75,8 +75,10 @@ function formatAnswer(section: Section): string[] {
 
   const by = section.answeredBy === null ? '' : ` by ${section.answeredBy}`;
 
+  // Who answered is said even when the answer is only a note: with no recipient
+  // on the section, this line is the only place the agent learns who it was.
   return [
-    ...(first === undefined ? [] : [`    answered${by}: ${first}`]),
+    `    answered${by}:${first === undefined ? '' : ` ${first}`}`,
     ...rest.map((line) => `    ${line}`),
     ...(note === undefined ? [] : note.split('\n').map((line) => `    note: ${line}`)),
   ];

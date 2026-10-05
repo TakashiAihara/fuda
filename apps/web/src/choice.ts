@@ -46,10 +46,22 @@ export function choiceShown(options: readonly SectionOption[], reply: ChoiceRepl
  * A name that is not the person's is somebody else's to answer: the server
  * refuses it, and a button that always fails is worse than a section that says
  * who it is waiting on. An unknown person answers nothing — the name is fetched
- * from the server rather than guessed, and until it arrives nothing is claimed.
+ * from the server rather than guessed, and until it arrives nothing is claimed,
+ * not even what is addressed to nobody.
  */
 export function answerableBy(recipient: string | null, person: string | null): boolean {
-  if (recipient === null) return true;
+  if (person === null) return false;
 
-  return person !== null && recipient === person;
+  return recipient === null || recipient === person;
+}
+
+/**
+ * Whether a key press in the other field sends it.
+ *
+ * An answer cannot be taken back, so the Enter that confirms an IME conversion
+ * must not send. Browsers disagree on how they say it: most set `isComposing`
+ * on that keydown, and Safari reports keyCode 229 instead, so both are checked.
+ */
+export function sendsOnKey(key: string, isComposing: boolean, keyCode: number): boolean {
+  return key === 'Enter' && !isComposing && keyCode !== 229;
 }

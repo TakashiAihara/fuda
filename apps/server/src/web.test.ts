@@ -87,10 +87,11 @@ describe('a screen that was built', () => {
   });
 
   it('does not shadow the routes registered before it', async () => {
-    // Registered last, so it matches every path including the ones above it. A
-    // static handler in front of `/health` answers the health check with the
-    // index, and compose goes on calling a server with no database healthy.
+    // A file named `health` in the bundle is what makes the order matter: the
+    // static handler passes over paths with no file behind them, so without one
+    // this would pass whichever way round the routes were registered.
     await built();
+    await writeFile(join(dir, 'health'), 'not the health check');
 
     const app = new Hono();
 

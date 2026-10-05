@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { Section as Row } from './api.ts';
 import { complaint, Refused, sendReply } from './api.ts';
-import { answerableBy, choiceAnswer, choiceShown } from './choice.ts';
+import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 
 /**
  * One section: what it says, and whatever can be done with it from here.
@@ -68,6 +68,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
       <div className="reply">
         <p className="reply-hint">answered by {section.answeredBy ?? 'someone'}</p>
         {shown === null ? null : <p className="answered-note">{shown}</p>}
+        {said === null ? null : <p className="complaint">{said}</p>}
       </div>
     );
   }
@@ -76,6 +77,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     return (
       <div className="reply">
         <p className="reply-hint">{hint(section)}</p>
+        {said === null ? null : <p className="complaint">{said}</p>}
       </div>
     );
   }
@@ -83,7 +85,11 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
   if (!answerableBy(section.recipient, person)) {
     return (
       <div className="reply">
-        <p className="reply-hint">Waiting on {section.recipient}. Nothing is owed by you.</p>
+        <p className="reply-hint">
+          {person === null
+            ? 'Finding out who you are before offering anything to answer.'
+            : `Waiting on ${section.recipient ?? 'anyone'}. Nothing is owed by you.`}
+        </p>
       </div>
     );
   }
@@ -97,7 +103,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
   return (
     <div className="reply">
       <p className="reply-hint">
-        Pick one, or write something else instead — whatever is written below is sent with the option you
+        Pick one, or write your own answer below. Anything written below is also sent with the option you
         click.
       </p>
 
@@ -129,10 +135,9 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
           disabled={answer.isPending}
           onChange={(event) => setNote(event.target.value)}
           onKeyDown={(event) => {
-            // A Japanese IME confirms what it is converting with the same Enter
-            // that submits here, so submitting on it sends the reading rather
-            // than the word.
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing || answer.isPending) return;
+            const { isComposing, keyCode } = event.nativeEvent;
+
+            if (!sendsOnKey(event.key, isComposing, keyCode) || answer.isPending) return;
 
             send(null);
           }}
