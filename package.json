@@ -11,7 +11,9 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --cwd apps/server dev",
-    "typecheck": "tsc --noEmit",
+    "dev:web": "bun run --cwd apps/web dev",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
+    "build:web": "bun run --cwd apps/web build",
     "lint": "oxlint",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",

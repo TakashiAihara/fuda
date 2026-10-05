@@ -11,6 +11,10 @@ import {
 
 const ANSWERING = REPLY_FORMS.filter((form) => form !== 'pickup');
 
+/** `count` distinct options, so a boundary can be written as a number. */
+const offered = (count: number) =>
+  Array.from({ length: count }, (_, index) => ({ value: `v${index}`, label: `label ${index}` }));
+
 describe('which state machine applies', () => {
   it('is decided by the reply form, not by the kind', () => {
     // A request that asks for an answer rather than to be taken runs the
@@ -135,6 +139,119 @@ describe('what a section has to carry', () => {
     };
 
     expect(sectionInputSchema.safeParse(oneOption).success).toBe(false);
+  });
+
+  it('takes a choice of two options and of five', () => {
+    // Two is the least that is still a choice, five the most anybody reads.
+    for (const count of [2, 5]) {
+      const choice = sectionInputSchema.safeParse({
+        kind: 'question',
+        replyForm: 'choice',
+        body: { text: 'which name?', options: offered(count) },
+      });
+
+      expect(choice.success).toBe(true);
+    }
+  });
+
+  it('refuses a choice of six options', () => {
+    // Past five nobody picks one, so the extra questions have to be asked as
+    // their own rather than buried in a list of six.
+    const result = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: { text: 'which name?', options: offered(6) },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error.issues[0]?.message).toContain('at most five');
+  });
+
+  it('takes one recommended option, but only as the first one', () => {
+    const first = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup', recommended: true },
+          { value: 'b', label: 'claim' },
+        ],
+      },
+    });
+
+    expect(first.success).toBe(true);
+    expect(first.success && first.data.body.options?.[0]?.recommended).toBe(true);
+  });
+
+  it('refuses a recommended option that is not the first one', () => {
+    const result = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'b', label: 'claim', recommended: true },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error.issues[0]?.message).toContain('first one');
+  });
+
+  it('refuses two recommended options', () => {
+    const result = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup', recommended: true },
+          { value: 'b', label: 'claim', recommended: true },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error.issues[0]?.message).toContain('at most one');
+  });
+
+  it('refuses two options offered under the same value', () => {
+    // An answer names a value, so two labels sharing one are indistinguishable
+    // in the reply — which is the whole of what a choice reply carries.
+    const result = sectionInputSchema.safeParse({
+      kind: 'question',
+      replyForm: 'choice',
+      body: {
+        text: 'which name?',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'a', label: 'claim' },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error.issues[0]?.message).toContain('offered twice');
+  });
+
+  it('leaves options on a section that asks for no answer alone', () => {
+    // Every one of these rules is about being answered, so it belongs to a
+    // choice. A report that names its two ways is not refused for it.
+    const odd = {
+      kind: 'report',
+      body: {
+        text: 'the two ways, for the record',
+        options: [
+          { value: 'a', label: 'pickup' },
+          { value: 'b', label: 'claim', recommended: true },
+        ],
+      },
+    };
+
+    expect(sectionInputSchema.safeParse(odd).success).toBe(true);
   });
 
   it('refuses an external tool section with nowhere to go', () => {

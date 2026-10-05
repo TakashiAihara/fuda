@@ -1,0 +1,422 @@
+/* The look of docs/design/02-one-screen.html, carried over rather than
+   reinvented: same tokens, same spacing, same two regions. The drawing had a
+   third region for activity, which this slice does not have yet. */
+
+:root {
+  color-scheme: light dark;
+
+  --paper: #fbfaf8;
+  --panel: #ffffff;
+  --sunk: #f3f1ed;
+  --line: #e2ded6;
+  --line-strong: #cfc9be;
+  --ink: #21201d;
+  --ink-soft: #6b6760;
+  --ink-faint: #9a958c;
+
+  --waiting: #b4531a;
+  --waiting-soft: #fdf0e6;
+  --deferred: #6a6f8a;
+  --deferred-soft: #eeeff5;
+  --taken: #2f6b4f;
+  --taken-soft: #e8f2ec;
+
+  --radius: 7px;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  --sans: system-ui, -apple-system, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16181b;
+    --panel: #1c1f23;
+    --sunk: #24272c;
+    --line: #2e3238;
+    --line-strong: #3d434b;
+    --ink: #e6e4e0;
+    --ink-soft: #a5a29c;
+    --ink-faint: #74716c;
+
+    --waiting: #e6a171;
+    --waiting-soft: #33251b;
+    --deferred: #a3a8c2;
+    --deferred-soft: #24262f;
+    --taken: #86c2a1;
+    --taken-soft: #1c2a22;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* One screen, two regions: what is open and what you opened. */
+.screen {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(420px, 1.65fr);
+  gap: 1px;
+  background: var(--line);
+  height: 100vh;
+}
+
+.region {
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.region > header {
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: none;
+}
+
+.region > header h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.count {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------------------------------------------------------------- list */
+
+.row {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 11px 16px 12px 12px;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 4px 1fr;
+  gap: 8px;
+  color: inherit;
+}
+
+.row:hover {
+  background: var(--sunk);
+}
+
+.row[aria-current='true'] {
+  background: var(--sunk);
+}
+
+.row[aria-current='true'] .rail {
+  background: var(--ink);
+}
+
+.rail {
+  border-radius: 4px;
+  background: transparent;
+}
+
+.row.unread .rail {
+  background: var(--waiting);
+}
+
+.row-summary {
+  font-weight: 500;
+  margin-bottom: 3px;
+  overflow-wrap: anywhere;
+}
+
+.row.read .row-summary {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.row-meta {
+  font-size: 12px;
+  color: var(--ink-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.owed {
+  font-weight: 600;
+}
+
+.owed.waiting {
+  color: var(--waiting);
+}
+
+.owed.deferred {
+  color: var(--deferred);
+}
+
+.owed.taken {
+  color: var(--taken);
+}
+
+.from {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.empty {
+  padding: 28px 16px;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+/* -------------------------------------------------------------- detail */
+
+.detail-head {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.detail-head h1 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+}
+
+.label {
+  background: var(--sunk);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.sections {
+  padding: 6px 22px 90px;
+}
+
+.section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.section:last-child {
+  border-bottom: 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.kind {
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.state {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 100px;
+  font-weight: 600;
+}
+
+.state.unanswered {
+  background: var(--waiting-soft);
+  color: var(--waiting);
+}
+
+.state.deferred {
+  background: var(--deferred-soft);
+  color: var(--deferred);
+}
+
+.state.answered {
+  background: var(--sunk);
+  color: var(--ink-faint);
+}
+
+.state.not_started,
+.state.in_progress,
+.state.done {
+  background: var(--taken-soft);
+  color: var(--taken);
+}
+
+.to {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  margin-left: auto;
+}
+
+/* Plain text for now. The requirements call for markdown eventually, and
+   rendering it as markdown means rendering it as HTML, which is a decision to
+   make once rather than by accident. */
+.body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.reply {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--sunk);
+  border-radius: var(--radius);
+}
+
+.reply-hint {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 13px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: inherit;
+  cursor: pointer;
+}
+
+.btn:hover {
+  border-color: var(--ink-soft);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.btn.primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--panel);
+}
+
+.btn.ghost {
+  border-style: dashed;
+  color: var(--ink-soft);
+}
+
+/* A mark on the button, not a different button: the recommended option is one
+   of the options, and it is answered the same way. */
+.recommended {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-left: 6px;
+}
+
+.other {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.field {
+  width: 100%;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: inherit;
+}
+
+.reply-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.answered-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+}
+
+.link-out {
+  color: var(--taken);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.link-out:hover {
+  text-decoration: underline;
+}
+
+.detail-empty {
+  margin: auto;
+  padding: 40px;
+  max-width: 380px;
+  color: var(--ink-faint);
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.complaint {
+  font-size: 12px;
+  color: var(--waiting);
+  margin-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .screen {
+    grid-template-columns: 1fr;
+    grid-template-rows: 40vh 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+}
