@@ -153,6 +153,28 @@ describe('the answer', () => {
     );
   });
 
+  it('says who settled an external tool, which carries nothing else', () => {
+    const settled = section({
+      replyForm: 'external_tool',
+      state: 'answered',
+      body: { text: 'review it there', link: 'https://example.com/pr/1' },
+      reply: {},
+      answeredBy: 'person',
+    });
+
+    expect(formatItem(item([settled]))).toBe(
+      [
+        '019ff5f5-a041-7cae-b500-fd404389867a  which name?',
+        'from pm',
+        '',
+        '  [019ff642-1111-7000-8000-00000000000a] question (external_tool) — answered → person',
+        '    review it there',
+        '    link: https://example.com/pr/1',
+        '    answered by person:',
+      ].join('\n'),
+    );
+  });
+
   it('reads a note on its own, which is all the answer there is', () => {
     const answered = section({
       state: 'answered',
