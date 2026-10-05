@@ -123,6 +123,30 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(((await listed.json()) as { items: unknown[] }).items).toHaveLength(0);
   });
 
+  it('refuses a choice of six options', async () => {
+    // Past five nobody picks one, and the answer is a single value, so a sixth
+    // would be an option that is there to be skipped.
+    const written = await write({
+      summary: 'six ways is not a choice',
+      sender: 'session:01K6Ss',
+      sections: [
+        {
+          kind: 'question',
+          replyForm: 'choice',
+          body: {
+            text: 'which?',
+            options: ['a', 'b', 'c', 'd', 'e', 'f'].map((value) => ({ value, label: value })),
+          },
+        },
+      ],
+    });
+
+    expect(written.status).toBe(400);
+    const problems = ((await written.json()) as { problems: { message: string }[] }).problems;
+
+    expect(problems.some((problem) => problem.message.includes('at most five'))).toBe(true);
+  });
+
   it('leaves nothing behind when a write fails inside the database', async () => {
     // Raised from an item that does not exist. The schema is happy with it, so
     // the failure happens in PostgreSQL, and the question is whether a

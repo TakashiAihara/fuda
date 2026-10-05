@@ -83,6 +83,11 @@ jobs:
           echo "$response"
           test "$response" = '{"status":"ok","database":"ok"}'
 
+      - name: the screen is served from the same origin
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8787/ | grep -q '<div id="root">'
+
       - name: the migration ran
         run: |
           set -euo pipefail

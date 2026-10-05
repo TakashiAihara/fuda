@@ -39,7 +39,27 @@ describe('GET /health', () => {
     // 503 rather than 200: compose gates on this, and a check that passes while
     // the thing it fronts is unreachable is worse than no check.
     expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ status: 'degraded', database: 'unreachable' });
+    expect(await response.json()).toEqual({
+      status: 'degraded',
+      database: 'unreachable',
+    });
+  });
+
+  it('GET /api/me says who the person is, rather than leaving the screen to guess', async () => {
+    // The screen's default view filters on it, and a guessed name would match
+    // nothing and read as an empty list rather than as a wrong one.
+    const app = createApp({
+      probeDatabase: async () => true,
+      repository: noRepository,
+      answering: noAnswering,
+      changes: createChanges(),
+      personIdentity: 'takashi',
+    });
+
+    const response = await app.request('/api/me');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ identity: 'takashi' });
   });
 
   it('asks the database on every request rather than caching the answer', async () => {
