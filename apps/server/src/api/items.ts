@@ -27,6 +27,7 @@ const listQuerySchema = z.object({
     .optional()
     .transform((v) => v === 'true'),
   limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
 });
 
 /** `?attribution=repository:fuda&attribution=branch:main` */

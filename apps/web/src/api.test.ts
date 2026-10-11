@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { complaint, personIdentity, Refused } from './api.ts';
+import { complaint, listItems, personIdentity, Refused } from './api.ts';
 
 describe('what a refused answer says', () => {
   it('repeats what the server said, because it knows what is wrong', () => {
@@ -97,5 +97,25 @@ describe('who the person is', () => {
     answeringWith(200, { identity: '' });
 
     await expect(personIdentity()).rejects.toThrow('fuda did not say who the person is');
+  });
+});
+
+describe('asking for one page of the list', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the person, for nobody, and for the page by offset and limit', async () => {
+    const fetched = vi.fn(async () => new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetched);
+
+    await listItems('person', 200, 100);
+
+    const url = new URL(String((fetched.mock.calls[0] as unknown[])[0]), 'http://fuda.test');
+
+    expect(url.pathname).toBe('/api/items');
+    expect(url.searchParams.getAll('recipient')).toEqual(['person', '']);
+    expect(url.searchParams.get('offset')).toBe('200');
+    expect(url.searchParams.get('limit')).toBe('100');
   });
 });
