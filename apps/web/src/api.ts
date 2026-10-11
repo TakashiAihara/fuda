@@ -139,7 +139,7 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
 }
 
 /** Shown above data a refetch could not replace, so it is not read as current. */
-export const stillShowing = 'could not reach fuda — showing what was last loaded';
+export const stillShowing = 'could not reload from fuda — showing what was last loaded';
 
 /**
  * What the person is told when an answer does not go through.
