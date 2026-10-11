@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { markRead, readItem } from './api.ts';
+import { markRead, readItem, stillShowing } from './api.ts';
 import { Section } from './section.tsx';
 
 export function Detail({ id, person }: { id: string; person: string | null }) {
@@ -34,6 +34,7 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
 
   return (
     <>
+      {item.isError ? <p className="complaint">{stillShowing}</p> : null}
       <div className="detail-head">
         <h1>{item.data.summary}</h1>
         <div className="labels">

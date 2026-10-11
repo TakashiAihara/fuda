@@ -23,13 +23,16 @@ describe('what a refused answer says', () => {
     // The request may have been recorded before the reply was lost, so saying
     // it did not reach fuda would be a verdict nobody can give.
     expect(complaint(new TypeError('fetch failed'))).toBe(
-      'the answer may not have reached fuda — what is shown is reloaded from what fuda recorded',
+      'the answer may not have reached fuda — reloading what fuda recorded',
     );
   });
 
   it('says the same about a server error, which can follow a write that happened', () => {
+    expect(complaint(new Refused(503, 'fuda answered 503'))).toBe(
+      'the answer may not have reached fuda — reloading what fuda recorded',
+    );
     expect(complaint(new Refused(500, 'fuda answered 500'))).toBe(
-      'the answer may not have reached fuda — what is shown is reloaded from what fuda recorded',
+      'the answer may not have reached fuda — reloading what fuda recorded',
     );
   });
 
@@ -82,6 +85,10 @@ describe('who the person is', () => {
 
   it('refuses a name that is not a string', async () => {
     answeringWith(200, { identity: null });
+
+    await expect(personIdentity()).rejects.toThrow('fuda did not say who the person is');
+
+    answeringWith(200, { identity: 42 });
 
     await expect(personIdentity()).rejects.toThrow('fuda did not say who the person is');
   });
