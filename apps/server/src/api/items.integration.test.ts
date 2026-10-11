@@ -275,6 +275,44 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(items.map((i) => i.summary).toSorted()).toEqual(['for anyone', 'for the person'].toSorted());
   });
 
+  it('paginates past the first page without disturbing the ordering', async () => {
+    await write({
+      summary: 'asked first',
+      sender: 'a',
+      sections: [{ kind: 'question', replyForm: 'free_text', body: { text: 'first' } }],
+    });
+    await write({
+      summary: 'asked second',
+      sender: 'a',
+      sections: [{ kind: 'question', replyForm: 'free_text', body: { text: 'second' } }],
+    });
+    await write({
+      summary: 'asked third',
+      sender: 'a',
+      sections: [{ kind: 'question', replyForm: 'free_text', body: { text: 'third' } }],
+    });
+
+    // No offset on the first ask, because the first page is where the list
+    // opens and a person has no reason to know an offset exists yet.
+    const firstPage = await app.request('/api/items?limit=2');
+    const firstItems = (await firstPage.json()) as { items: { summary: string }[] };
+
+    expect(firstItems.items.map((i) => i.summary)).toEqual(['asked first', 'asked second']);
+
+    const secondPage = await app.request('/api/items?limit=2&offset=2');
+    const secondItems = (await secondPage.json()) as { items: { summary: string }[] };
+
+    expect(secondItems.items.map((i) => i.summary)).toEqual(['asked third']);
+  });
+
+  it('refuses an offset that is not a place in the list', async () => {
+    const beforeTheStart = await app.request('/api/items?offset=-1');
+    const notAPlace = await app.request('/api/items?offset=1.5');
+
+    expect(beforeTheStart.status).toBe(400);
+    expect(notAPlace.status).toBe(400);
+  });
+
   it('refuses half an origin', async () => {
     // An item raised beside something has to say beside what. Naming the item
     // without the section, or the section without the item, is neither.

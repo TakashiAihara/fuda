@@ -23,6 +23,15 @@ export type ListQuery = {
   state?: 'unanswered' | 'open' | 'all' | undefined;
   closed?: boolean | undefined;
   limit?: number | undefined;
+  /**
+   * How much of that ordering to pass before it starts.
+   *
+   * shortcut: an offset skips or repeats a row when the list moves between two
+   * asks. The screen refetches every page it holds on each change, so this only
+   * shows until the next change arrives; move to a keyset cursor if a client
+   * pages without refetching.
+   */
+  offset?: number | undefined;
 };
 
 export function createItemRepository(database: Database) {
@@ -155,7 +164,8 @@ export function createItemRepository(database: Database) {
           sql`${itemList.oldestUnansweredAt} asc nulls last`,
           desc(itemList.createdAt),
         )
-        .limit(query.limit ?? 100);
+        .limit(query.limit ?? 100)
+        .offset(query.offset ?? 0);
     },
   };
 }

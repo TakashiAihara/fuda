@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { listItems } from './api.ts';
 import type { ListedItem } from './api.ts';
+import { nextPageOffset, pageSize } from './paging.ts';
 
 /**
  * What is open, in the order the API already decided: waiting first and oldest
@@ -9,6 +10,12 @@ import type { ListedItem } from './api.ts';
  * Nothing here ranks or suggests. Ordering and one filter are the whole feature,
  * and adding a second opinion about what matters would be the thing this project
  * exists not to do.
+ *
+ * The list is asked for a page at a time rather than all at once, because the
+ * API cuts a long list at a fixed length and a hundred old unanswered exchanges
+ * would otherwise hide every new choice behind them. The person asks for the
+ * next page rather than the screen fetching it unbidden, so what is off the
+ * screen stays off it until they say otherwise.
  */
 export function List({
   person,
@@ -19,19 +26,40 @@ export function List({
   selected: string | null;
   onSelect: (id: string) => void;
 }) {
-  const items = useQuery({ queryKey: ['items', person], queryFn: () => listItems(person) });
+  const items = useInfiniteQuery({
+    queryKey: ['items', person],
+    queryFn: ({ pageParam }) => listItems(person, pageParam, pageSize),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      nextPageOffset(
+        allPages.reduce((total, page) => total + page.length, 0),
+        lastPage.length,
+      ),
+  });
 
   if (items.isError) return <p className="empty">{items.error.message}</p>;
   if (items.data === undefined) return <p className="empty">asking fuda…</p>;
-  if (items.data.length === 0) {
+
+  const rows = items.data.pages.flat();
+
+  if (rows.length === 0) {
     return <p className="empty">Nothing is waiting on you. Which is the point of the ordering.</p>;
   }
 
   return (
     <>
-      {items.data.map((item) => (
+      {rows.map((item) => (
         <Row key={item.id} item={item} selected={item.id === selected} onSelect={onSelect} />
       ))}
+      {items.hasNextPage ? (
+        <button
+          className="more"
+          onClick={() => void items.fetchNextPage()}
+          disabled={items.isFetchingNextPage}
+        >
+          {items.isFetchingNextPage ? 'asking fuda…' : 'Show more'}
+        </button>
+      ) : null}
     </>
   );
 }
