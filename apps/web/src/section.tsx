@@ -1,8 +1,8 @@
 import type { ChoiceReply } from '@fuda/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Section as Row } from './api.ts';
-import { complaint, refetchAfter, sendReply } from './api.ts';
+import { complaint, sendReply } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 
 /**
@@ -41,6 +41,10 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
   const [note, setNote] = useState('');
   const [said, setSaid] = useState<string | null>(null);
 
+  // What was said about a failed answer stops being true once the section has
+  // moved on, and the moved section speaks for itself.
+  useEffect(() => setSaid(null), [section.state]);
+
   const answer = useMutation({
     mutationFn: (reply: ChoiceReply) => sendReply(section.id, reply),
     onSuccess: () => {
@@ -51,11 +55,9 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     onError: (error: unknown) => {
       setSaid(complaint(error));
 
-      // Not a retry, and not only for the refusals: a connection that broke
-      // may still have carried the answer, so the row on screen may describe a
-      // section that is already settled. Only the server can say which, so
-      // every outcome it did not refuse is one it is asked about again.
-      if (refetchAfter(error)) void client.invalidateQueries();
+      // Not a retry. Whatever failed, the row on screen may no longer be what
+      // fuda holds, and only a refetch can say.
+      void client.invalidateQueries();
     },
   });
 

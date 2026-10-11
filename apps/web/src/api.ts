@@ -141,39 +141,20 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
 /**
  * What the person is told when an answer does not go through.
  *
- * A refusal is the server speaking, so its own words go on screen — except a
- * 409, which says the section stopped waiting without saying whether somebody
- * answered it or postponed it. That becomes what is actually known: it moved
- * while this screen was open, and it is being reloaded.
+ * A 4xx is the server reading the answer and saying no, so its own words go on
+ * screen — except a 409, which says the section stopped waiting without saying
+ * whether somebody answered it or postponed it.
  *
- * A connection that broke is not a refusal and cannot be read as one. The
- * server may have recorded the answer and lost the reply on the way back, so
- * claiming the answer did not arrive would leave the person looking at a
- * section that is already settled, still offering buttons. Whether it arrived
- * is not known, and the reload that settles it has not finished either, so
- * nothing here says it has.
+ * A broken connection or a 5xx says nothing about whether the answer was
+ * recorded: the write may have happened before the reply was lost. So the
+ * screen says only that it may not have, and the reload shows what was.
  */
 export function complaint(error: unknown): string {
   if (error instanceof Refused && error.status === 409) {
     return 'this section changed while it was open, so it is being reloaded — have another look';
   }
 
-  if (error instanceof Refused) return error.message;
+  if (error instanceof Refused && error.status < 500) return error.message;
 
-  return 'the answer may or may not have reached fuda — reloading to show what fuda recorded';
-}
-
-/**
- * Whether a failed answer makes the screen ask the server what it recorded.
- *
- * A broken connection says nothing about whether the answer landed, and a 409
- * says the section moved without saying what it moved to, so both leave what is
- * on screen possibly stale and a refetch is the only thing that settles it. A
- * refusal of the answer itself is the one case that does not: the server read
- * it and said no, so nothing moved and the same section comes back.
- */
-export function refetchAfter(error: unknown): boolean {
-  if (!(error instanceof Refused)) return true;
-
-  return error.status === 409;
+  return 'the answer may not have reached fuda — what is shown is reloaded from what fuda recorded';
 }
