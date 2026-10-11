@@ -36,6 +36,14 @@ export function createApp(deps: AppDependencies) {
     );
   });
 
+  /**
+   * Who the person is, because the screen cannot guess it. It is
+   * configuration, and the recipient filter the default view is built on would
+   * quietly match nothing if the name were assumed. Kept off `/health`, which
+   * compose reads to decide liveness and nothing else.
+   */
+  app.get('/api/me', (c) => c.json({ identity: deps.personIdentity }));
+
   app.route(
     '/api',
     createItemRoutes({

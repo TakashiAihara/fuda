@@ -1,0 +1,11 @@
+{
+  "//": "Its own project because the browser needs the DOM, and handing lib.dom to the server and the cli would put a second set of globals in front of the ones bun already declares. strictest comes last on purpose: @tsconfig/bun turns noUnusedLocals, noUnusedParameters and noPropertyAccessFromIndexSignature off, and extends applies left to right.",
+  "extends": ["@tsconfig/bun/tsconfig.json", "@tsconfig/strictest/tsconfig.json"],
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "noEmit": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

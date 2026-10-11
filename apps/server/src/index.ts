@@ -5,6 +5,7 @@ import { createChanges } from './events.ts';
 import { runMigrations } from './db/migrate.ts';
 import { createAnsweringRepository } from './repository/answering.ts';
 import { createItemRepository } from './repository/items.ts';
+import { serveWeb, webBundle } from './web.ts';
 
 const config = loadConfig(process.env);
 const database = createDatabase(config.databaseUrl);
@@ -18,6 +19,10 @@ const app = createApp({
   changes: createChanges(),
   personIdentity: config.personIdentity,
 });
+
+if (!serveWeb(app, webBundle)) {
+  console.log(`no screen at ${webBundle}, so only the API is answered`);
+}
 
 const server = Bun.serve({
   port: config.port,

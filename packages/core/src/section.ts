@@ -82,9 +82,27 @@ const nonEmpty = z.string().trim().min(1);
 const optionSchema = z.object({
   value: nonEmpty,
   label: nonEmpty,
+  /**
+   * Which one the writer would take. The screen only marks it and never
+   * reorders, which is why the writer has to put it first — the order the
+   * person reads is the order the agent wrote.
+   */
+  recommended: z.boolean().optional(),
 });
+export type SectionOption = z.infer<typeof optionSchema>;
 
 const bodyBase = z.object({ text: nonEmpty });
+
+/**
+ * Only the two schemes that navigate. The screen puts a link in an `href`, and
+ * a `javascript:` link runs as script in the screen when clicked, so the agent
+ * that writes an item could otherwise hand the person something to execute.
+ * A plain `z.url()` takes every scheme, so the check is here.
+ */
+const linkSchema = z.url({
+  protocol: /^https?$/,
+  error: 'a link has to be an http or https URL',
+});
 
 /**
  * The varying half of a section. What it must carry depends on the reply form:
@@ -93,7 +111,7 @@ const bodyBase = z.object({ text: nonEmpty });
  */
 export const bodySchema = bodyBase.extend({
   options: z.array(optionSchema).optional(),
-  link: z.url().optional(),
+  link: linkSchema.optional(),
 });
 export type SectionBody = z.infer<typeof bodySchema>;
 
@@ -107,12 +125,50 @@ export const sectionInputSchema = z
     body: bodySchema,
   })
   .superRefine((section, ctx) => {
-    if (section.replyForm === 'choice' && (section.body.options ?? []).length < 2) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['body', 'options'],
-        message: 'a choice needs at least two options to be a choice',
-      });
+    const options = section.body.options ?? [];
+
+    if (section.replyForm === 'choice') {
+      if (options.length < 2) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['body', 'options'],
+          message: 'a choice needs at least two options to be a choice',
+        });
+      }
+
+      const marked = options.flatMap((option, index) => (option.recommended === true ? [index] : []));
+
+      if (marked.length > 1) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['body', 'options'],
+          message: 'at most one option can be recommended, or the mark says nothing',
+        });
+      }
+
+      // The screen leads with the first option, so a mark on any other one
+      // promises something the reader is not shown first.
+      if (marked.length === 1 && marked[0] !== 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['body', 'options'],
+          message: 'the recommended option has to be the first one',
+        });
+      }
+
+      // Inside the branch with the rest of the option rules, because all of
+      // them are about being answered: a report that names the same thing twice
+      // for the record is not refused for it.
+      const values = options.map((option) => option.value);
+      const repeated = values.find((value, index) => values.indexOf(value) !== index);
+
+      if (repeated !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['body', 'options'],
+          message: `${repeated} is offered twice, and an answer can only name one of them`,
+        });
+      }
     }
 
     if (section.replyForm === 'external_tool' && section.body.link === undefined) {

@@ -15,6 +15,11 @@ COPY . .
 
 RUN bun install --frozen-lockfile
 
+# The screen is static files, and the server serves them from its own origin, so
+# there is no second container and no second port to publish. Built as root
+# because the bundle lands in the tree the image just copied.
+RUN bun run build:web
+
 USER bun
 EXPOSE 8787
 

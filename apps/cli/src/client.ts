@@ -1,3 +1,4 @@
+import type { Reply, SectionBody } from '@fuda/core';
 import type { Config } from './config.ts';
 
 export type Section = {
@@ -7,8 +8,11 @@ export type Section = {
   replyForm: string | null;
   recipient: string | null;
   state: string | null;
-  body: { text: string; options?: { value: string; label: string }[]; link?: string };
+  body: SectionBody;
   unansweredSince: string | null;
+  /** What was answered, in the shape of the reply form that answers it. */
+  reply: Reply | null;
+  answeredBy: string | null;
 };
 
 export type Item = {

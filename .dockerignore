@@ -5,6 +5,10 @@ docs
 *.md
 .github
 
+# The image builds the screen itself, so a bundle left in the tree by a local
+# build would only be copied in ahead of the one the image makes.
+**/dist
+
 # Kept out of the image as well as out of git. COPY apps ./apps would otherwise
 # pick up an .env someone left in the tree.
 .env
