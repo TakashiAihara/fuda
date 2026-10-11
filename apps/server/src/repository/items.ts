@@ -135,11 +135,24 @@ export function createItemRepository(database: Database) {
           ...(wantsUnaddressed ? [sql`${sections.recipient} is null`] : []),
         ];
 
+        // The state is asked of the section the recipient matched rather than
+        // of the item. An item is open because of a question addressed to
+        // somebody else, and a section nobody owes an answer to has no state
+        // to be in, so either one keeps an item in a list the reader has
+        // nothing to answer in.
+        const wanted =
+          query.state === 'all'
+            ? []
+            : query.state === 'unanswered'
+              ? ['unanswered']
+              : ['unanswered', 'deferred', 'not_started', 'in_progress'];
+
         conditions.push(
           sql`exists (
             select 1 from ${sections}
             where ${sections.itemId} = ${itemList.id}
               and (${sql.join(alternatives, sql` or `)})
+              ${wanted.length > 0 ? sql`and ${sections.state} in ${wanted}` : sql``}
           )`,
         );
       }
