@@ -135,12 +135,11 @@ export function createItemRepository(database: Database) {
           ...(wantsUnaddressed ? [sql`${sections.recipient} is null`] : []),
         ];
 
-        // The state is asked of the section the recipient matched rather than
-        // of the item. An item is open because of a question addressed to
-        // somebody else, and a section nobody owes an answer to has no state
-        // to be in, so either one keeps an item in a list the reader has
-        // nothing to answer in.
-        const wanted =
+        // The state is asked of the section the recipient matched, not of the
+        // item: the reader is listed for what is still waiting on them, not for
+        // what waits on somebody else in the same item. A section that owes
+        // nothing has a null state, which no state list matches.
+        const wanted: readonly SectionState[] =
           query.state === 'all'
             ? []
             : query.state === 'unanswered'
