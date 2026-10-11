@@ -2,6 +2,12 @@ import { assertDisposable } from '../apps/server/src/db/disposable.ts';
 import type { Database } from '../apps/server/src/db/client.ts';
 
 /**
+ * Who the server takes the browser to be. Not the server's default, so a
+ * screen that assumed the default instead of asking would fail.
+ */
+export const PERSON_IDENTITY = 'e2e-person';
+
+/**
  * Which database the browser tests may run against, and how to hand the next
  * one a clean one.
  *

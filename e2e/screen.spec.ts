@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { createDatabase, type Database } from '../apps/server/src/db/client.ts';
-import { emptyDatabase, resolveTestDatabaseUrl } from './database.ts';
+import { emptyDatabase, PERSON_IDENTITY, resolveTestDatabaseUrl } from './database.ts';
 
 /**
  * The screen, driven the way a person drives it: open the list, open an item,
@@ -18,7 +18,7 @@ import { emptyDatabase, resolveTestDatabaseUrl } from './database.ts';
  * it.
  */
 
-const PERSON = 'person';
+const PERSON = PERSON_IDENTITY;
 const SESSION = 'session:worker';
 
 type SectionRow = { id: string; state: string | null; reply: unknown; answeredBy: string | null };
@@ -107,10 +107,12 @@ test('a choice addressed to the person is answered by clicking one of its option
 
   // The recommendation is a mark on the first option, not a default: pressing
   // the other one has to answer with the other one.
-  await expect(detail.getByRole('button', { name: '★ recommended' })).toBeVisible();
+  await expect(detail.getByRole('button', { name: RECOMMENDED.label })).toContainText('★ recommended');
+  await expect(detail.getByRole('button', { name: OTHER.label })).not.toContainText('★');
   await detail.getByRole('button', { name: OTHER.label }).click();
 
-  await expect(detail.getByText(`answered by ${PERSON}`)).toBeVisible();
+  await expect(detail.getByText(`answered by ${PERSON}`, { exact: true })).toBeVisible();
+  await expect(detail.getByRole('button', { name: OTHER.label })).toHaveCount(0);
   await expect(detail.getByText(OTHER.label, { exact: true })).toBeVisible();
 
   const stored = sectionOf(await readItem(request, item.id), section.id);
@@ -153,9 +155,9 @@ test('a choice is answered with only what the person wrote', async ({ page, requ
 
   await field.fill(note);
   await expect(send).toBeEnabled();
-  await field.press('Enter');
+  await send.click();
 
-  await expect(detail.getByText(`answered by ${PERSON}`)).toBeVisible();
+  await expect(detail.getByText(`answered by ${PERSON}`, { exact: true })).toBeVisible();
   await expect(detail.getByText(note, { exact: true })).toBeVisible();
 
   const stored = sectionOf(await readItem(request, item.id), section.id);
@@ -168,6 +170,13 @@ test('a choice is answered with only what the person wrote', async ({ page, requ
 });
 
 test('an item waiting on a session is not on the list the person sees', async ({ page, request }) => {
+  // Addressed to nobody, so it belongs on the person's list. It is the
+  // positive control: an always-empty list would fail here.
+  const forAnyone = await writeItem(request, {
+    summary: 'anyone can take this one',
+    sender: SESSION,
+    sections: [{ kind: 'request', replyForm: 'pickup', body: { text: 'tidy the fixtures' } }],
+  });
   const item = await writeItem(request, {
     summary: "this one is the session business, not the person's",
     sender: SESSION,
@@ -188,11 +197,11 @@ test('an item waiting on a session is not on the list the person sees', async ({
 
   await page.goto('/');
 
-  await expect(regions(page).list).toContainText('Nothing is waiting on you');
+  await expect(regions(page).list.getByRole('button', { name: forAnyone.summary })).toBeVisible();
   await expect(page.getByText(item.summary)).toHaveCount(0);
 
-  // Written and still owed — to somebody else. Without this the list could be
-  // empty because the write failed, and the assertion above would pass anyway.
+  // Still owed, to somebody else: it is off the list for whom it waits on,
+  // not because it stopped waiting.
   const stored = sectionOf(await readItem(request, item.id), section.id);
 
   expect(stored.state).toBe('unanswered');
