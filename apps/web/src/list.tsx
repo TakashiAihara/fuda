@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { listItems } from './api.ts';
+import { listItems, stillShowing } from './api.ts';
 import type { ListedItem } from './api.ts';
 
 /**
@@ -25,12 +25,20 @@ export function List({
   if (items.data === undefined) {
     return <p className="empty">{items.isError ? items.error.message : 'asking fuda…'}</p>;
   }
+  const stale = items.isError ? <p className="complaint">{stillShowing}</p> : null;
+
   if (items.data.length === 0) {
-    return <p className="empty">Nothing is waiting on you. Which is the point of the ordering.</p>;
+    return (
+      <>
+        {stale}
+        <p className="empty">Nothing is waiting on you. Which is the point of the ordering.</p>
+      </>
+    );
   }
 
   return (
     <>
+      {stale}
       {items.data.map((item) => (
         <Row key={item.id} item={item} selected={item.id === selected} onSelect={onSelect} />
       ))}

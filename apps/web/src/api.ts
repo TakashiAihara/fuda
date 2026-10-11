@@ -138,6 +138,9 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
   });
 }
 
+/** Shown above data a refetch could not replace, so it is not read as current. */
+export const stillShowing = 'could not reach fuda — showing what was last loaded';
+
 /**
  * What the person is told when an answer does not go through.
  *
@@ -156,5 +159,5 @@ export function complaint(error: unknown): string {
 
   if (error instanceof Refused && error.status < 500) return error.message;
 
-  return 'the answer may not have reached fuda — what is shown is reloaded from what fuda recorded';
+  return 'the answer may not have reached fuda — reloading what fuda recorded';
 }
