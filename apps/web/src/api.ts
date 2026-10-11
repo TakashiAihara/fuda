@@ -77,14 +77,18 @@ async function asked<T>(path: string, init?: RequestInit): Promise<T> {
  *
  * Asked for rather than assumed: the name is configuration, and a screen that
  * guessed it would quietly filter its own list down to nothing the moment the
- * name changed.
+ * name changed. A failure is turned into a refusal the way it is anywhere else,
+ * so a server that cannot answer says why rather than being read as no name.
  */
 export async function personIdentity(): Promise<string> {
   const response = await fetch('/api/me');
-  const body = (await response.json().catch(() => null)) as { identity?: string } | null;
+
+  if (!response.ok) await refused(response);
+
+  const body = (await response.json().catch(() => null)) as { identity?: unknown } | null;
   const person = body?.identity;
 
-  if (person === undefined || person === '') {
+  if (typeof person !== 'string' || person === '') {
     throw new Refused(response.status, 'fuda did not say who the person is');
   }
 
@@ -134,20 +138,26 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
   });
 }
 
+/** Shown above data a refetch could not replace, so it is not read as current. */
+export const stillShowing = 'could not reach fuda — showing what was last loaded';
+
 /**
  * What the person is told when an answer does not go through.
  *
- * A 409 is the one refusal worth rephrasing: it means the section stopped
- * waiting for an answer, and this screen cannot tell whether that was somebody
- * answering or somebody postponing, so it says only what it knows — that the
- * section moved while it was open, and that what is on screen has been reloaded.
+ * A 4xx is the server reading the answer and saying no, so its own words go on
+ * screen — except a 409, which says the section stopped waiting without saying
+ * whether somebody answered it or postponed it.
+ *
+ * A broken connection or a 5xx says nothing about whether the answer was
+ * recorded: the write may have happened before the reply was lost. So the
+ * screen says only that it may not have, and the reload shows what was.
  */
 export function complaint(error: unknown): string {
   if (error instanceof Refused && error.status === 409) {
-    return 'this section changed while it was open, so it has been reloaded — have another look';
+    return 'this section changed while it was open, so it is being reloaded — have another look';
   }
 
-  if (error instanceof Refused) return error.message;
+  if (error instanceof Refused && error.status < 500) return error.message;
 
-  return 'the answer did not reach fuda';
+  return 'the answer may not have reached fuda — reloading what fuda recorded';
 }

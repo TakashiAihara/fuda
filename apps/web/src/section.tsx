@@ -1,8 +1,8 @@
 import type { ChoiceReply } from '@fuda/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Section as Row } from './api.ts';
-import { complaint, Refused, sendReply } from './api.ts';
+import { complaint, sendReply } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 
 /**
@@ -41,6 +41,10 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
   const [note, setNote] = useState('');
   const [said, setSaid] = useState<string | null>(null);
 
+  // What was said about a failed answer stops being true once the section has
+  // moved on, and the moved section speaks for itself.
+  useEffect(() => setSaid(null), [section.state]);
+
   const answer = useMutation({
     mutationFn: (reply: ChoiceReply) => sendReply(section.id, reply),
     onSuccess: () => {
@@ -51,9 +55,9 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     onError: (error: unknown) => {
       setSaid(complaint(error));
 
-      // Not a retry: the section is no longer waiting for an answer, so the
-      // screen is refetched rather than left holding buttons that keep failing.
-      if (error instanceof Refused && error.status === 409) void client.invalidateQueries();
+      // Not a retry. Whatever failed, the row on screen may no longer be what
+      // fuda holds, and only a refetch can say.
+      void client.invalidateQueries();
     },
   });
 
