@@ -99,19 +99,17 @@ export async function personIdentity(): Promise<string> {
  * limit the API applies. The empty one is the request for sections addressed to
  * nobody.
  *
- * `offset` walks that same ordering, so one page continues where the last ended
- * rather than starting the list over. The limit is asked for explicitly rather
- * than left to the server's default, because the screen measures a page against
- * it to decide whether anything is behind the one it is holding.
+ * `offset` walks that same ordering, so one page continues where the last ended.
+ * The limit is always sent, because the screen measures a page against it to
+ * decide whether anything is behind the one it is holding.
  */
-export async function listItems(person: string, offset = 0, limit?: number): Promise<ListedItem[]> {
+export async function listItems(person: string, offset: number, limit: number): Promise<ListedItem[]> {
   const params = new URLSearchParams();
 
   params.append('recipient', person);
   params.append('recipient', '');
   params.append('offset', String(offset));
-
-  if (limit !== undefined) params.append('limit', String(limit));
+  params.append('limit', String(limit));
 
   const { items } = await asked<{ items: ListedItem[] }>(`/api/items?${params.toString()}`);
 

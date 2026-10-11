@@ -30,15 +30,12 @@ export function List({
     queryKey: ['items', person],
     queryFn: ({ pageParam }) => listItems(person, pageParam, pageSize),
     initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) =>
-      nextPageOffset(
-        allPages.reduce((total, page) => total + page.length, 0),
-        lastPage.length,
-      ),
+    getNextPageParam: (_, allPages) => nextPageOffset(allPages),
   });
 
-  if (items.isError) return <p className="empty">{items.error.message}</p>;
-  if (items.data === undefined) return <p className="empty">asking fuda…</p>;
+  if (items.data === undefined) {
+    return <p className="empty">{items.isError ? items.error.message : 'asking fuda…'}</p>;
+  }
 
   const rows = items.data.pages.flat();
 
@@ -54,8 +51,11 @@ export function List({
       {items.hasNextPage ? (
         <button
           className="more"
+          // Disabled through any fetch, not only the next page's: fetching the
+          // next page cancels a refetch in flight, and the pages it leaves
+          // stay shifted until the next change.
           onClick={() => void items.fetchNextPage()}
-          disabled={items.isFetchingNextPage}
+          disabled={items.isFetching}
         >
           {items.isFetchingNextPage ? 'asking fuda…' : 'Show more'}
         </button>

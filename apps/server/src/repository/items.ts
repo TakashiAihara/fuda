@@ -27,9 +27,9 @@ export type ListQuery = {
    * How much of that ordering to pass before it starts.
    *
    * shortcut: an offset skips or repeats a row when the list moves between two
-   * asks. The screen refetches every page it holds on each change, so this only
-   * shows until the next change arrives; move to a keyset cursor if a client
-   * pages without refetching.
+   * asks. The screen refetches every page it holds on each change and does not
+   * page while a fetch is running, so this shows only until the next change;
+   * move to a keyset cursor if a client pages without refetching.
    */
   offset?: number | undefined;
 };
@@ -163,6 +163,9 @@ export function createItemRepository(database: Database) {
           // ...oldest first inside it, and nulls (everything else) after.
           sql`${itemList.oldestUnansweredAt} asc nulls last`,
           desc(itemList.createdAt),
+          // A unique last key, so an offset cannot land between two rows that
+          // tie on everything above and show one twice and the other never.
+          asc(itemList.id),
         )
         .limit(query.limit ?? 100)
         .offset(query.offset ?? 0);

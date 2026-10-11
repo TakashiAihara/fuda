@@ -309,8 +309,11 @@ describe.skipIf(!url)('items over HTTP', () => {
     const beforeTheStart = await app.request('/api/items?offset=-1');
     const notAPlace = await app.request('/api/items?offset=1.5');
 
+    const pastAnyList = await app.request('/api/items?offset=1e20');
+
     expect(beforeTheStart.status).toBe(400);
     expect(notAPlace.status).toBe(400);
+    expect(pastAnyList.status).toBe(400);
   });
 
   it('refuses half an origin', async () => {
