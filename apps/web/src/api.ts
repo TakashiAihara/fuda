@@ -98,12 +98,18 @@ export async function personIdentity(): Promise<string> {
  * said as a single value, and asking twice would break both the ordering and the
  * limit the API applies. The empty one is the request for sections addressed to
  * nobody.
+ *
+ * `offset` walks that same ordering, so one page continues where the last ended.
+ * The limit is always sent, because the screen measures a page against it to
+ * decide whether anything is behind the one it is holding.
  */
-export async function listItems(person: string): Promise<ListedItem[]> {
+export async function listItems(person: string, offset: number, limit: number): Promise<ListedItem[]> {
   const params = new URLSearchParams();
 
   params.append('recipient', person);
   params.append('recipient', '');
+  params.append('offset', String(offset));
+  params.append('limit', String(limit));
 
   const { items } = await asked<{ items: ListedItem[] }>(`/api/items?${params.toString()}`);
 

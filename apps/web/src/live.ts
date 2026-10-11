@@ -1,6 +1,22 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
+/** How long changes are gathered before the screen refetches once for all of them. */
+export const gatherMs = 150;
+
+/** Runs `run` once, `ms` after the last of a burst of triggers. */
+export function gathered(run: () => void, ms: number): { trigger: () => void; cancel: () => void } {
+  let pending: ReturnType<typeof setTimeout> | undefined;
+
+  return {
+    trigger: () => {
+      clearTimeout(pending);
+      pending = setTimeout(run, ms);
+    },
+    cancel: () => clearTimeout(pending),
+  };
+}
+
 /**
  * Told that something changed, rather than told what changed.
  *
@@ -17,12 +33,17 @@ export function useLiveChanges(): void {
 
     // `open` counts too: the browser reconnects on its own, and a stream that
     // was down has missed whatever happened while it was.
-    const refetch = () => void client.invalidateQueries();
+    //
+    // Gathered over a short window: each invalidation cancels the refetch in
+    // flight, and a list refetches one request per loaded page, so a burst of
+    // changes would otherwise keep it from ever finishing.
+    const { trigger: refetch, cancel } = gathered(() => void client.invalidateQueries(), gatherMs);
 
     events.addEventListener('open', refetch);
     events.addEventListener('change', refetch);
 
     return () => {
+      cancel();
       events.removeEventListener('open', refetch);
       events.removeEventListener('change', refetch);
       events.close();
