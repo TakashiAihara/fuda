@@ -5,6 +5,6 @@
     "noEmit": true,
     "types": ["bun"]
   },
-  "include": ["apps/**/*.ts", "packages/**/*.ts", "*.ts"],
+  "include": ["apps/**/*.ts", "packages/**/*.ts", "e2e/**/*.ts", "*.ts"],
   "exclude": ["node_modules", "**/dist", "apps/web"]
 }
