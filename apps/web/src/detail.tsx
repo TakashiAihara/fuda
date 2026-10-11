@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { markRead, readItem } from './api.ts';
+import { markRead, readItem, stillShowing } from './api.ts';
 import { Section } from './section.tsx';
 
 export function Detail({ id, person }: { id: string; person: string | null }) {
@@ -27,11 +27,14 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
     markAsRead(id);
   }, [id, item.data, markAsRead]);
 
-  if (item.isError) return <p className="detail-empty">{item.error.message}</p>;
-  if (item.data === undefined) return <p className="detail-empty">opening…</p>;
+  // A failed refetch keeps what was already shown rather than replacing it.
+  if (item.data === undefined) {
+    return <p className="detail-empty">{item.isError ? item.error.message : 'opening…'}</p>;
+  }
 
   return (
     <>
+      {item.isError ? <p className="complaint">{stillShowing}</p> : null}
       <div className="detail-head">
         <h1>{item.data.summary}</h1>
         <div className="labels">
