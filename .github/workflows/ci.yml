@@ -65,6 +65,42 @@ jobs:
         env:
           FUDA_TEST_DATABASE_URL: postgres://fuda:fuda@localhost:5432/fuda_test
 
+  e2e:
+    name: the screen, driven in a browser
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: fuda
+          POSTGRES_PASSWORD: fuda
+          POSTGRES_DB: fuda_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fuda -d fuda_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run test:e2e
+        env:
+          FUDA_TEST_DATABASE_URL: postgres://fuda:fuda@localhost:5432/fuda_test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
+
   compose:
     name: docker compose up is healthy
     runs-on: ubuntu-latest
