@@ -37,7 +37,9 @@ export function List({
     return <p className="empty">{items.isError ? items.error.message : 'asking fuda…'}</p>;
   }
 
-  const rows = items.data.pages.flat();
+  // Keyed by id: an offset can show a row on two pages when the list moved
+  // between asks, and React needs one row per key.
+  const rows = [...new Map(items.data.pages.flat().map((item) => [item.id, item])).values()];
 
   if (rows.length === 0) {
     return <p className="empty">Nothing is waiting on you. Which is the point of the ordering.</p>;
