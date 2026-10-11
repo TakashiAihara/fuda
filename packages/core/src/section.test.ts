@@ -259,26 +259,15 @@ describe('what a section has to carry', () => {
     expect(sectionInputSchema.safeParse(record).success).toBe(true);
   });
 
-  it('takes an external tool section that names nowhere to go', () => {
-    // Signing in somewhere, or asking a person to confirm, is work done away
-    // from the screen with no address to hand over. Refusing it would have the
-    // writer inventing a URL to satisfy the schema.
-    const noLink = { kind: 'question', replyForm: 'external_tool', body: { text: 'review this' } };
+  it('takes a request done elsewhere that names nowhere to go', () => {
+    const signIn = { kind: 'request', replyForm: 'external_tool', body: { text: 'sign in to the panel' } };
+    const parsed = sectionInputSchema.safeParse(signIn);
 
-    expect(sectionInputSchema.safeParse(noLink).success).toBe(true);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.body).toEqual({ text: 'sign in to the panel' });
   });
 
-  it('takes an external tool section that has its link', () => {
-    const withLink = {
-      kind: 'question',
-      replyForm: 'external_tool',
-      body: { text: 'review this', link: 'http://192.168.0.151:4310' },
-    };
-
-    expect(sectionInputSchema.safeParse(withLink).success).toBe(true);
-  });
-
-  it.each(['https://example.com/run', 'http://192.168.0.151:4310'])('takes the link %s', (link) => {
+  it.each(['https://example.com/run', 'http://10.0.0.5:4310'])('takes the link %s', (link) => {
     const linked = {
       kind: 'question',
       replyForm: 'external_tool',

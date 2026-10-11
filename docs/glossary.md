@@ -89,14 +89,14 @@ The values of `sections.reply_form`. The list is meant to grow, which is why it 
 | free text     | a written answer                                     | —                                             |
 | choice        | one of the offered options is picked                 | `options`, each an option value and its label |
 | approval      | one click saying whether to proceed                  | —                                             |
-| external tool | the work happens elsewhere, then one click on return | `link`, the address it points at              |
+| external tool | the work happens elsewhere, then one click on return | `link`, when the elsewhere is somewhere to open        |
 | pickup        | it is taken and started, rather than answered        | —                                             |
 
 | Word     | Where it exists         | Meaning                                                                                                            |
 | -------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | option   | `sections.body.options` | one of the choices offered by a `choice` section. The reply records which one                                      |
 | decision | `sections.reply`        | what an `approval` section came back with: proceed or not                                                          |
-| link     | `sections.body.link`    | where an `external_tool` section sends you. Recorded because the interface needs it and it cannot be reconstructed |
+| link     | `sections.body.link`    | where an `external_tool` section sends you, when there is one to send it to. Recorded because the interface needs it and it cannot be reconstructed |
 
 ### Requests
 

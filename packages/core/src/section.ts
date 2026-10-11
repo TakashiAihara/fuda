@@ -108,10 +108,8 @@ const linkSchema = z.url({
  * The varying half of a section. What it must carry depends on the reply form:
  * a choice without options cannot be answered.
  *
- * A link is optional because being sent elsewhere does not always name a
- * somewhere: signing in to something, or confirming with a person, is work
- * done away from the screen and has no address to hand over. Demanding one
- * would have the writer inventing a URL to satisfy the schema.
+ * A link is optional: signing in somewhere or confirming with a person is work
+ * done elsewhere with no address to hand over.
  */
 export const bodySchema = bodyBase.extend({
   options: z.array(optionSchema).optional(),
