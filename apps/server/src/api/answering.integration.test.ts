@@ -59,6 +59,15 @@ describe.skipIf(!url)('answering over HTTP', () => {
     await database.sql`truncate table sections, items restart identity cascade`;
   });
 
+  it.each([
+    '/api/sections/not-an-id/reply',
+    '/api/sections/not-an-id/defer',
+    '/api/items/not-an-id/read',
+    '/api/items/not-an-id/close',
+  ])('refuses %s as not an id rather than failing in the database', async (path) => {
+    expect((await post(path, {})).status).toBe(400);
+  });
+
   describe('replying', () => {
     it('settles a written answer', async () => {
       const item = await write([question()]);

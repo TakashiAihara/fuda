@@ -26,6 +26,17 @@ const status: Record<Refusal['reason'], 404 | 403 | 409 | 400> = {
 export function createAnsweringRoutes(deps: AnsweringRoutesDependencies) {
   const routes = new Hono();
 
+  // A malformed id would reach PostgreSQL as a uuid cast and fail there as a 500.
+  for (const [pattern, noun] of [
+    ['/sections/:id/*', 'section'],
+    ['/items/:id/*', 'item'],
+  ] as const) {
+    routes.use(pattern, async (c, next) => {
+      if (!z.uuid().safeParse(c.req.param('id')).success) return c.json({ error: `not a ${noun} id` }, 400);
+      return next();
+    });
+  }
+
   const senderOf = async (c: Context) => {
     const body = (await c.req.json().catch(() => ({}))) as unknown;
     const parsed = senderSchema.safeParse(body ?? {});

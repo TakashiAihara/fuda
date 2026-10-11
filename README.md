@@ -41,7 +41,7 @@ fuda show <id>
 
 There is no `fuda reply`, and that is the point: a section is answered by whoever it is addressed to, and most of them are addressed to you.
 
-Nothing assumes a particular host or platform. Every value is configuration, and `.env.example` lists them; only the database connection has no default.
+Nothing assumes a particular host or platform. Every value is configuration, and `.env.example` lists them. On the server only the database connection has no default; the command also needs `FUDA_SENDER`, as above.
 
 ## Interfaces
 
