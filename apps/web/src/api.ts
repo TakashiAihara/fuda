@@ -85,10 +85,10 @@ export async function personIdentity(): Promise<string> {
 
   if (!response.ok) await refused(response);
 
-  const body = (await response.json().catch(() => null)) as { identity?: string } | null;
+  const body = (await response.json().catch(() => null)) as { identity?: unknown } | null;
   const person = body?.identity;
 
-  if (person === undefined || person === '') {
+  if (typeof person !== 'string' || person === '') {
     throw new Refused(response.status, 'fuda did not say who the person is');
   }
 
