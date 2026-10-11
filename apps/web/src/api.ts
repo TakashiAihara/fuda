@@ -77,10 +77,14 @@ async function asked<T>(path: string, init?: RequestInit): Promise<T> {
  *
  * Asked for rather than assumed: the name is configuration, and a screen that
  * guessed it would quietly filter its own list down to nothing the moment the
- * name changed.
+ * name changed. A failure is turned into a refusal the way it is anywhere else,
+ * so a server that cannot answer says why rather than being read as no name.
  */
 export async function personIdentity(): Promise<string> {
   const response = await fetch('/api/me');
+
+  if (!response.ok) await refused(response);
+
   const body = (await response.json().catch(() => null)) as { identity?: string } | null;
   const person = body?.identity;
 
@@ -137,17 +141,39 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
 /**
  * What the person is told when an answer does not go through.
  *
- * A 409 is the one refusal worth rephrasing: it means the section stopped
- * waiting for an answer, and this screen cannot tell whether that was somebody
- * answering or somebody postponing, so it says only what it knows — that the
- * section moved while it was open, and that what is on screen has been reloaded.
+ * A refusal is the server speaking, so its own words go on screen — except a
+ * 409, which says the section stopped waiting without saying whether somebody
+ * answered it or postponed it. That becomes what is actually known: it moved
+ * while this screen was open, and it is being reloaded.
+ *
+ * A connection that broke is not a refusal and cannot be read as one. The
+ * server may have recorded the answer and lost the reply on the way back, so
+ * claiming the answer did not arrive would leave the person looking at a
+ * section that is already settled, still offering buttons. Whether it arrived
+ * is not known, and the reload that settles it has not finished either, so
+ * nothing here says it has.
  */
 export function complaint(error: unknown): string {
   if (error instanceof Refused && error.status === 409) {
-    return 'this section changed while it was open, so it has been reloaded — have another look';
+    return 'this section changed while it was open, so it is being reloaded — have another look';
   }
 
   if (error instanceof Refused) return error.message;
 
-  return 'the answer did not reach fuda';
+  return 'the answer may or may not have reached fuda — reloading to show what fuda recorded';
+}
+
+/**
+ * Whether a failed answer makes the screen ask the server what it recorded.
+ *
+ * A broken connection says nothing about whether the answer landed, and a 409
+ * says the section moved without saying what it moved to, so both leave what is
+ * on screen possibly stale and a refetch is the only thing that settles it. A
+ * refusal of the answer itself is the one case that does not: the server read
+ * it and said no, so nothing moved and the same section comes back.
+ */
+export function refetchAfter(error: unknown): boolean {
+  if (!(error instanceof Refused)) return true;
+
+  return error.status === 409;
 }
