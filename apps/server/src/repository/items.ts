@@ -135,11 +135,23 @@ export function createItemRepository(database: Database) {
           ...(wantsUnaddressed ? [sql`${sections.recipient} is null`] : []),
         ];
 
+        // The state is asked of the section the recipient matched, not of the
+        // item: the reader is listed for what is still waiting on them, not for
+        // what waits on somebody else in the same item. A section that owes
+        // nothing has a null state, which no state list matches.
+        const wanted: readonly SectionState[] =
+          query.state === 'all'
+            ? []
+            : query.state === 'unanswered'
+              ? ['unanswered']
+              : ['unanswered', 'deferred', 'not_started', 'in_progress'];
+
         conditions.push(
           sql`exists (
             select 1 from ${sections}
             where ${sections.itemId} = ${itemList.id}
               and (${sql.join(alternatives, sql` or `)})
+              ${wanted.length > 0 ? sql`and ${sections.state} in ${wanted}` : sql``}
           )`,
         );
       }

@@ -251,11 +251,8 @@ describe.skipIf(!url)('items over HTTP', () => {
   it('answers the view the person actually opens: waiting on me, or on nobody', async () => {
     // The requirements make this the default screen. One recipient value cannot
     // express it, and asking twice would break both the ordering and the limit.
-    await write({
-      summary: 'for the person',
-      sender: 'pm',
-      sections: [{ kind: 'question', replyForm: 'approval', recipient: 'person', body: { text: 'ok?' } }],
-    });
+    // The pickup is written between the two questions, and still comes after
+    // both: what is unanswered comes first, oldest first.
     await write({
       summary: 'for another agent',
       sender: 'pm',
@@ -264,15 +261,149 @@ describe.skipIf(!url)('items over HTTP', () => {
       ],
     });
     await write({
+      summary: 'asked the person first',
+      sender: 'pm',
+      sections: [{ kind: 'question', replyForm: 'approval', recipient: 'person', body: { text: 'ok?' } }],
+    });
+    await write({
       summary: 'for anyone',
       sender: 'pm',
       sections: [{ kind: 'request', replyForm: 'pickup', body: { text: 'whoever' } }],
+    });
+    await write({
+      summary: 'asked the person second',
+      sender: 'pm',
+      sections: [{ kind: 'question', replyForm: 'approval', recipient: 'person', body: { text: 'ok?' } }],
     });
 
     const mine = await app.request('/api/items?recipient=person&recipient=');
     const { items } = (await mine.json()) as { items: { summary: string }[] };
 
-    expect(items.map((i) => i.summary).toSorted()).toEqual(['for anyone', 'for the person'].toSorted());
+    // Unanswered first, and oldest first inside that, is the whole ordering
+    // this view is for. The one nothing is owed on still belongs here, after
+    // them rather than among them.
+    expect(items.map((i) => i.summary)).toEqual([
+      'asked the person first',
+      'asked the person second',
+      'for anyone',
+    ]);
+  });
+
+  it('keeps an item out of a list when nothing in it is that reader’s to answer', async () => {
+    // The report is addressed to nobody and owes nothing, and the question is
+    // waiting on an agent. The item is open, and to the person it is empty.
+    await write({
+      summary: 'the agent’s question, with a report alongside',
+      sender: 'pm',
+      sections: [
+        { kind: 'report', body: { text: 'here is what happened' } },
+        {
+          kind: 'question',
+          replyForm: 'choice',
+          recipient: 'session:worker',
+          body: {
+            text: 'which name?',
+            options: [
+              { value: 'a', label: 'pickup' },
+              { value: 'b', label: 'claim' },
+            ],
+          },
+        },
+      ],
+    });
+
+    const mine = await app.request('/api/items?recipient=person&recipient=');
+    const { items } = (await mine.json()) as { items: { summary: string }[] };
+
+    expect(items).toHaveLength(0);
+
+    // With every state asked for, no state condition is left on the section,
+    // so the unaddressed report alone is enough to list the item.
+    const everything = await app.request('/api/items?recipient=person&recipient=&state=all');
+    const listed = (await everything.json()) as { items: { summary: string }[] };
+
+    expect(listed.items.map((i) => i.summary)).toEqual(['the agent’s question, with a report alongside']);
+  });
+
+  it('asks the state of the section the recipient matched, not of the item', async () => {
+    // The person's own section is a pickup not yet started, and the only
+    // unanswered one belongs to an agent. Open is not the same question as
+    // unanswered, and the agent's question answers neither of them for the
+    // person.
+    await write({
+      summary: 'the person has to take this',
+      sender: 'pm',
+      sections: [
+        { kind: 'request', replyForm: 'pickup', recipient: 'person', body: { text: 'take this' } },
+        {
+          kind: 'question',
+          replyForm: 'free_text',
+          recipient: 'session:worker',
+          body: { text: 'which name?' },
+        },
+      ],
+    });
+
+    const summaries = async (query: string) => {
+      const listed = await app.request(`/api/items?${query}`);
+      return ((await listed.json()) as { items: { summary: string }[] }).items.map((i) => i.summary);
+    };
+
+    expect(await summaries('recipient=person&state=unanswered')).toEqual([]);
+    expect(await summaries('recipient=person&state=open')).toEqual(['the person has to take this']);
+  });
+
+  it('keeps a section the person put off in their open list, and out of their unanswered one', async () => {
+    const written = await write({
+      summary: 'put off by the person',
+      sender: 'pm',
+      sections: [
+        { kind: 'question', replyForm: 'approval', recipient: 'person', body: { text: 'ok?' } },
+        { kind: 'question', replyForm: 'free_text', recipient: 'session:worker', body: { text: 'name?' } },
+      ],
+    });
+    const { sections } = (await written.json()) as { sections: { id: string; recipient: string }[] };
+    const mine = sections.find((s) => s.recipient === 'person');
+
+    const deferred = await app.request(`/api/sections/${mine?.id}/defer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(deferred.status).toBe(200);
+
+    const summaries = async (query: string) => {
+      const listed = await app.request(`/api/items?${query}`);
+      return ((await listed.json()) as { items: { summary: string }[] }).items.map((i) => i.summary);
+    };
+
+    expect(await summaries('recipient=person&state=open')).toEqual(['put off by the person']);
+    expect(await summaries('recipient=person&state=unanswered')).toEqual([]);
+  });
+
+  it('applies the limit after the person view is narrowed and ordered', async () => {
+    await write({
+      summary: 'for another agent',
+      sender: 'pm',
+      sections: [
+        { kind: 'question', replyForm: 'approval', recipient: 'session:worker', body: { text: 'ok?' } },
+      ],
+    });
+    await write({
+      summary: 'asked the person first',
+      sender: 'pm',
+      sections: [{ kind: 'question', replyForm: 'approval', recipient: 'person', body: { text: 'ok?' } }],
+    });
+    await write({
+      summary: 'asked the person second',
+      sender: 'pm',
+      sections: [{ kind: 'question', replyForm: 'approval', recipient: 'person', body: { text: 'ok?' } }],
+    });
+
+    const listed = await app.request('/api/items?recipient=person&recipient=&limit=1');
+    const { items } = (await listed.json()) as { items: { summary: string }[] };
+
+    expect(items.map((i) => i.summary)).toEqual(['asked the person first']);
   });
 
   it('refuses half an origin', async () => {
