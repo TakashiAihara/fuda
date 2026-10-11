@@ -106,8 +106,10 @@ const linkSchema = z.url({
 
 /**
  * The varying half of a section. What it must carry depends on the reply form:
- * a choice without options cannot be answered, and an external tool without a
- * link points nowhere.
+ * a choice without options cannot be answered.
+ *
+ * A link is optional: signing in somewhere or confirming with a person is work
+ * done elsewhere with no address to hand over.
  */
 export const bodySchema = bodyBase.extend({
   options: z.array(optionSchema).optional(),
@@ -169,14 +171,6 @@ export const sectionInputSchema = z
           message: `${repeated} is offered twice, and an answer can only name one of them`,
         });
       }
-    }
-
-    if (section.replyForm === 'external_tool' && section.body.link === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['body', 'link'],
-        message: 'an external tool section needs the link it sends you to',
-      });
     }
   });
 
