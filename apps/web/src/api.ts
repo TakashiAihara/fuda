@@ -159,5 +159,5 @@ export function complaint(error: unknown): string {
 
   if (error instanceof Refused && error.status < 500) return error.message;
 
-  return 'the answer may not have reached fuda — reloading what fuda recorded';
+  return 'the answer may not have reached fuda — what is shown is what fuda last said it holds';
 }
