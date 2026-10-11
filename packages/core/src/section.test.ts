@@ -259,10 +259,13 @@ describe('what a section has to carry', () => {
     expect(sectionInputSchema.safeParse(record).success).toBe(true);
   });
 
-  it('refuses an external tool section with nowhere to go', () => {
+  it('takes an external tool section that names nowhere to go', () => {
+    // Signing in somewhere, or asking a person to confirm, is work done away
+    // from the screen with no address to hand over. Refusing it would have the
+    // writer inventing a URL to satisfy the schema.
     const noLink = { kind: 'question', replyForm: 'external_tool', body: { text: 'review this' } };
 
-    expect(sectionInputSchema.safeParse(noLink).success).toBe(false);
+    expect(sectionInputSchema.safeParse(noLink).success).toBe(true);
   });
 
   it('takes an external tool section that has its link', () => {
