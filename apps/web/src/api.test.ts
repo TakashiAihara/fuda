@@ -80,6 +80,12 @@ describe('who the person is', () => {
     await expect(personIdentity()).rejects.toThrow('fuda did not say who the person is');
   });
 
+  it('refuses a name that is not a string', async () => {
+    answeringWith(200, { identity: null });
+
+    await expect(personIdentity()).rejects.toThrow('fuda did not say who the person is');
+  });
+
   it('refuses a name the server left blank', async () => {
     answeringWith(200, { identity: '' });
 
