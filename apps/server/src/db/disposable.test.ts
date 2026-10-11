@@ -48,6 +48,19 @@ describe('assertDisposable', () => {
     expect(() => assertDisposable(real, undefined)).toThrow(/not named for it/);
   });
 
+  it.each(['latest', 'contest', 'fuda_testing', 'attest_db'])(
+    'refuses %s, which only contains the letters',
+    (name) => {
+      expect(() => assertDisposable(`postgres://u:p@localhost:5432/${name}`, undefined)).toThrow(
+        /not named for it/,
+      );
+    },
+  );
+
+  it.each(['test', 'fuda_test', 'fuda_test_e2e', 'test_fuda'])('takes %s, named for the job', (name) => {
+    expect(() => assertDisposable(`postgres://u:p@localhost:5432/${name}`, undefined)).not.toThrow();
+  });
+
   it('refuses the configured database however it is spelled', () => {
     // Named like a test database, but it is the one the server uses.
     expect(() =>
@@ -57,5 +70,16 @@ describe('assertDisposable', () => {
 
   it('refuses a target it cannot parse', () => {
     expect(() => assertDisposable('the test database', undefined)).toThrow(/not a URL/);
+  });
+
+  it('keeps the password out of the refusal', () => {
+    expect(() => assertDisposable('postgres://u:s3cret@ host/fuda_test', undefined)).toThrow(
+      'FUDA_TEST_DATABASE_URL is not a URL',
+    );
+    try {
+      assertDisposable('postgres://u:s3cret@ host/fuda_test', undefined);
+    } catch (error) {
+      expect(String(error)).not.toContain('s3cret');
+    }
   });
 });

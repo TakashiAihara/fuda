@@ -53,13 +53,15 @@ export function assertDisposable(testUrl: string, configuredUrl: string | undefi
   const target = describe(testUrl);
 
   if (target === null) {
-    throw new Error(`FUDA_TEST_DATABASE_URL is not a URL: ${testUrl}`);
+    // The URL itself is left out: it carries the password.
+    throw new Error('FUDA_TEST_DATABASE_URL is not a URL');
   }
 
-  if (!target.database.includes('test')) {
+  // A word of its own, so `latest` or `contest` does not pass for a test database.
+  if (!/(^|_)test(_|$)/.test(target.database)) {
     throw new Error(
       `refusing to run destructive tests against a database not named for it: ` +
-        `${target.database}. Name it something with "test" in it.`,
+        `${target.database}. Name it with "test" as a word of its own, such as fuda_test.`,
     );
   }
 
