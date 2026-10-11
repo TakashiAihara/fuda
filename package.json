@@ -19,10 +19,12 @@
     "fmt:check": "oxfmt --check",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test",
     "db:migrate": "bun run --cwd apps/server db:migrate",
     "db:generate": "bun run --cwd apps/server db:generate"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tsconfig/bun": "^1.0.10",
     "@tsconfig/strictest": "^2.0.8",
     "@types/bun": "^1.3.14",
