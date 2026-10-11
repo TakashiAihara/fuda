@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { complaint, personIdentity, Refused, refetchAfter } from './api.ts';
+import { complaint, personIdentity, Refused } from './api.ts';
 
 describe('what a refused answer says', () => {
   it('repeats what the server said, because it knows what is wrong', () => {
@@ -19,55 +19,22 @@ describe('what a refused answer says', () => {
     );
   });
 
-  it('does not claim the section is already reloaded', () => {
-    // The refetch has only been started when this text appears. Saying it has
-    // finished would report an outcome nobody has seen, and the person is left
-    // looking at the stale screen if it does not come back.
-    expect(complaint(new Refused(409, 'this is no longer waiting for an answer'))).toContain(
-      'is being reloaded',
-    );
-    expect(complaint(new Refused(409, 'this is no longer waiting for an answer'))).not.toContain(
-      'has been reloaded',
-    );
-  });
-
-  it('says the answer may have got there when the connection broke', () => {
+  it('says the answer may not have got there when the connection broke', () => {
     // The request may have been recorded before the reply was lost, so saying
-    // it did not reach fuda would have the person answer a settled section
-    // again — and against the server's own version of the same section.
-    const said = complaint(new TypeError('fetch failed'));
-
-    expect(said).toBe('the answer may or may not have reached fuda — reloading to show what fuda recorded');
-    expect(said).not.toContain('did not reach');
-  });
-
-  it('says the same about an error that is not an exception at all', () => {
-    // Whatever the mutation is handed has to reach the person as the unknown
-    // outcome it is, not as a verdict about a request that may have landed.
-    expect(complaint('something else entirely')).toBe(
-      'the answer may or may not have reached fuda — reloading to show what fuda recorded',
+    // it did not reach fuda would be a verdict nobody can give.
+    expect(complaint(new TypeError('fetch failed'))).toBe(
+      'the answer may not have reached fuda — what is shown is reloaded from what fuda recorded',
     );
   });
-});
 
-describe('when a failed answer makes the screen ask again', () => {
-  it('asks again after a connection that broke', () => {
-    // Nothing said the answer was refused, so the row on screen may describe a
-    // section the server has already settled. Only a refetch can tell.
-    expect(refetchAfter(new TypeError('fetch failed'))).toBe(true);
-    expect(refetchAfter('something else entirely')).toBe(true);
+  it('says the same about a server error, which can follow a write that happened', () => {
+    expect(complaint(new Refused(500, 'fuda answered 500'))).toBe(
+      'the answer may not have reached fuda — what is shown is reloaded from what fuda recorded',
+    );
   });
 
-  it('asks again when the section moved under the screen', () => {
-    expect(refetchAfter(new Refused(409, 'this is no longer waiting for an answer'))).toBe(true);
-  });
-
-  it('does not ask again when the server refused the answer itself', () => {
-    // The server read the answer and said no. Nothing moved, so a refetch
-    // brings back the same section and only costs a round trip.
-    expect(refetchAfter(new Refused(400, 'x is not one of the options offered'))).toBe(false);
-    expect(refetchAfter(new Refused(403, 'this is waiting on session:worker, not on person'))).toBe(false);
-    expect(refetchAfter(new Refused(404, 'no such section'))).toBe(false);
+  it('keeps the server words for the last status below a server error', () => {
+    expect(complaint(new Refused(499, 'closed before an answer'))).toBe('closed before an answer');
   });
 });
 

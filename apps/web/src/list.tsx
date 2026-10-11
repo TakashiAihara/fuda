@@ -21,8 +21,10 @@ export function List({
 }) {
   const items = useQuery({ queryKey: ['items', person], queryFn: () => listItems(person) });
 
-  if (items.isError) return <p className="empty">{items.error.message}</p>;
-  if (items.data === undefined) return <p className="empty">asking fuda…</p>;
+  // A failed refetch keeps what was already shown rather than replacing it.
+  if (items.data === undefined) {
+    return <p className="empty">{items.isError ? items.error.message : 'asking fuda…'}</p>;
+  }
   if (items.data.length === 0) {
     return <p className="empty">Nothing is waiting on you. Which is the point of the ordering.</p>;
   }

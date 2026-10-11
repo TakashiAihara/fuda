@@ -27,8 +27,10 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
     markAsRead(id);
   }, [id, item.data, markAsRead]);
 
-  if (item.isError) return <p className="detail-empty">{item.error.message}</p>;
-  if (item.data === undefined) return <p className="detail-empty">opening…</p>;
+  // A failed refetch keeps what was already shown rather than replacing it.
+  if (item.data === undefined) {
+    return <p className="detail-empty">{item.isError ? item.error.message : 'opening…'}</p>;
+  }
 
   return (
     <>
