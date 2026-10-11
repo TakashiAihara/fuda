@@ -1,0 +1,32 @@
+{
+  "name": "fuda",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A shared task queue between a person and their coding agent",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --cwd apps/server dev",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:migrate": "bun run --cwd apps/server db:migrate",
+    "db:generate": "bun run --cwd apps/server db:generate"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "^1.0.10",
+    "@tsconfig/strictest": "^2.0.8",
+    "@types/bun": "^1.3.14",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.77.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
