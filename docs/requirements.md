@@ -129,7 +129,7 @@ One screen: a list, the selected item, and the activity arriving. Navigation bet
 
 - Replies happen inside the detail pane. Choices are buttons, approval is one click, free text is a field
 - Next to the reply field is a way to raise a separate item, so an unrelated thought can be captured without leaving
-- An external tool opens by link, not embedded. On return, one click marks the section answered
+- An external tool opens by link, not embedded, when it has one. Some work done elsewhere has no address — signing in, confirming with someone — so the link is optional. When the work is done, one click marks the section answered
 - Activity arrives twice over: as a toast that passes, and into a region that keeps it. A toast alone would make it unreviewable, and being able to look back at it is most of the reason it is kept at all
 
 A toast is not a notification. Notifications leave the browser for a pluggable target and fire only when something new becomes unanswered; a toast is the open screen showing what just arrived. Activity produces toasts and never notifications, or a month of it would arrive on someone's phone.
@@ -144,7 +144,7 @@ The interface can be changed later. What the interface requires to be recorded c
 
 - Which item and section an item was raised from, for items created through the raise-a-separate-item path
 - The time a section became unanswered, since ordering is by that and not by creation time
-- The link an external tool section points at
+- The link an external tool section points at, when it has one
 - When a notification was last sent, needed both for batching and for capping reminders
 - Which sender each activity line came from, and which request section it advances when it advances one. Neither can be worked out afterwards from the line's text
 
