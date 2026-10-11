@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { resolveTestDatabaseUrl } from './e2e/database.ts';
+import { PERSON_IDENTITY, resolveTestDatabaseUrl } from './e2e/database.ts';
 
 const PORT = 18787;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -12,9 +12,10 @@ const databaseUrl = resolveTestDatabaseUrl(process.env);
 
 export default defineConfig({
   testDir: './e2e',
-  // Playwright's default would collect vitest's `.test.ts` too, and the two
-  // runners would each run the other's files.
   testMatch: '**/*.spec.ts',
+  // A committed test.only would otherwise run one test and report green.
+  forbidOnly: true,
+  retries: 0,
   // One server and one database, emptied between tests: two workers would empty
   // the tables out from under each other.
   workers: 1,
@@ -36,7 +37,7 @@ export default defineConfig({
       FUDA_DATABASE_URL: databaseUrl,
       FUDA_PORT: String(PORT),
       FUDA_BASE_URL: ORIGIN,
-      FUDA_PERSON_IDENTITY: 'person',
+      FUDA_PERSON_IDENTITY: PERSON_IDENTITY,
     },
   },
 });
