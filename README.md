@@ -37,6 +37,8 @@ An agent writes and reads through the command. There is no packaged release yet,
 ```bash
 bun install
 # a small launcher on PATH, so the agent's shell finds it too
+# (~/.local/bin must be on PATH; use another directory that is, if not)
+mkdir -p ~/.local/bin
 printf '#!/bin/sh\nexec bun "%s/apps/cli/src/main.ts" "$@"\n' "$PWD" > ~/.local/bin/fuda
 chmod +x ~/.local/bin/fuda
 ```
@@ -59,8 +61,9 @@ Nothing assumes a particular host or platform. Every value is configuration, and
 Needs [Bun](https://bun.sh) and a PostgreSQL. The compose file does not publish the database port, so run your own for development, with a second database for the tests (they empty it):
 
 ```bash
-docker run -d --name fuda-dev-db -p 5432:5432 -e POSTGRES_USER=fuda -e POSTGRES_PASSWORD=fuda postgres:18
-docker exec fuda-dev-db createdb -U fuda fuda_test   # once the database is up
+docker run -d --name fuda-dev-db -p 127.0.0.1:5432:5432 -e POSTGRES_USER=fuda -e POSTGRES_PASSWORD=fuda postgres:18
+until docker exec fuda-dev-db pg_isready -U fuda -q; do sleep 1; done
+docker exec fuda-dev-db createdb -U fuda fuda_test
 
 # nothing loads a .env file; export the values
 export FUDA_DATABASE_URL=postgres://fuda:fuda@localhost:5432/fuda
