@@ -2,6 +2,8 @@
 
 A shared task queue between you and your coding agent.
 
+> **Under active development.** The API, the CLI and the data model still change without notice, and there is no release yet. See [Status](#status) for what works today.
+
 Working with a coding agent in a terminal, the things that need an answer — a decision to make, a question to settle, a request to hand over — exist only as terminal output. They disappear when the session ends, when context is compacted, or when they scroll away.
 
 fuda gives them somewhere to live. The agent writes them; you read and answer them in a browser; nothing has to be retained in your head or in scrollback.
@@ -30,7 +32,18 @@ docker compose up
 
 That is the whole installation. PostgreSQL comes with it, migrations run on start, and the server is at <http://localhost:8787>.
 
-An agent writes and reads through the command:
+An agent writes and reads through the command. There is no packaged release yet, so run it from a clone:
+
+```bash
+bun install
+# a small launcher on PATH, so the agent's shell finds it too
+# (~/.local/bin must be on PATH; use another directory that is, if not)
+mkdir -p ~/.local/bin
+printf '#!/bin/sh\nexec bun "%s/apps/cli/src/main.ts" "$@"\n' "$PWD" > ~/.local/bin/fuda
+chmod +x ~/.local/bin/fuda
+```
+
+It talks to `http://localhost:8787` unless `FUDA_URL` says otherwise.
 
 ```bash
 export FUDA_SENDER=session:01K6Ss     # who is writing. Required
@@ -42,6 +55,30 @@ fuda show <id>
 There is no `fuda reply`, and that is the point: a section is answered by whoever it is addressed to, and most of them are addressed to you.
 
 Nothing assumes a particular host or platform. Every value is configuration, and `.env.example` lists them. On the server only the database connection has no default; the command also needs `FUDA_SENDER`, as above.
+
+## Development
+
+Needs [Bun](https://bun.sh) and a PostgreSQL. The compose file does not publish the database port, so run your own for development, with a second database for the tests (they empty it):
+
+```bash
+docker run -d --name fuda-dev-db -p 127.0.0.1:5432:5432 -e POSTGRES_USER=fuda -e POSTGRES_PASSWORD=fuda postgres:18
+until docker exec fuda-dev-db pg_isready -U fuda -q; do sleep 1; done
+docker exec fuda-dev-db createdb -U fuda fuda_test
+
+# nothing loads a .env file; export the values
+export FUDA_DATABASE_URL=postgres://fuda:fuda@localhost:5432/fuda
+export FUDA_TEST_DATABASE_URL=postgres://fuda:fuda@localhost:5432/fuda_test
+
+bun install
+bunx playwright install chromium   # once, for test:e2e
+bun run dev            # server, with migrations
+bun run dev:web        # browser UI with hot reload
+bun run typecheck
+bun run lint
+bun run test           # unit tests
+bun run test:integration
+bun run test:e2e       # drives the screen in a browser
+```
 
 ## Interfaces
 
