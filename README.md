@@ -36,7 +36,9 @@ An agent writes and reads through the command. There is no packaged release yet,
 
 ```bash
 bun install
-alias fuda="bun $PWD/apps/cli/src/main.ts"
+# a small launcher on PATH, so the agent's shell finds it too
+printf '#!/bin/sh\nexec bun "%s/apps/cli/src/main.ts" "$@"\n' "$PWD" > ~/.local/bin/fuda
+chmod +x ~/.local/bin/fuda
 ```
 
 It talks to `http://localhost:8787` unless `FUDA_URL` says otherwise.
@@ -54,17 +56,25 @@ Nothing assumes a particular host or platform. Every value is configuration, and
 
 ## Development
 
-Needs [Bun](https://bun.sh) and a PostgreSQL to point `FUDA_DATABASE_URL` at. The compose file does not publish the database port, so for local development run your own, for example `docker run -d -p 5432:5432 -e POSTGRES_USER=fuda -e POSTGRES_PASSWORD=fuda postgres:18`.
+Needs [Bun](https://bun.sh) and a PostgreSQL. The compose file does not publish the database port, so run your own for development, with a second database for the tests (they empty it):
 
 ```bash
+docker run -d --name fuda-dev-db -p 5432:5432 -e POSTGRES_USER=fuda -e POSTGRES_PASSWORD=fuda postgres:18
+docker exec fuda-dev-db createdb -U fuda fuda_test   # once the database is up
+
+# nothing loads a .env file; export the values
+export FUDA_DATABASE_URL=postgres://fuda:fuda@localhost:5432/fuda
+export FUDA_TEST_DATABASE_URL=postgres://fuda:fuda@localhost:5432/fuda_test
+
 bun install
+bunx playwright install chromium   # once, for test:e2e
 bun run dev            # server, with migrations
 bun run dev:web        # browser UI with hot reload
 bun run typecheck
 bun run lint
 bun run test           # unit tests
-bun run test:integration   # needs FUDA_TEST_DATABASE_URL; empties that database
-bun run test:e2e           # same, and drives the screen in a browser
+bun run test:integration
+bun run test:e2e       # drives the screen in a browser
 ```
 
 ## Interfaces
