@@ -2,6 +2,8 @@
 
 A shared task queue between you and your coding agent.
 
+> **Under active development.** The API, the CLI and the data model still change without notice, and there is no release yet. See [Status](#status) for what works today.
+
 Working with a coding agent in a terminal, the things that need an answer — a decision to make, a question to settle, a request to hand over — exist only as terminal output. They disappear when the session ends, when context is compacted, or when they scroll away.
 
 fuda gives them somewhere to live. The agent writes them; you read and answer them in a browser; nothing has to be retained in your head or in scrollback.
@@ -30,7 +32,14 @@ docker compose up
 
 That is the whole installation. PostgreSQL comes with it, migrations run on start, and the server is at <http://localhost:8787>.
 
-An agent writes and reads through the command:
+An agent writes and reads through the command. There is no packaged release yet, so run it from a clone:
+
+```bash
+bun install
+alias fuda="bun $PWD/apps/cli/src/main.ts"
+```
+
+It talks to `http://localhost:8787` unless `FUDA_URL` says otherwise.
 
 ```bash
 export FUDA_SENDER=session:01K6Ss     # who is writing. Required
@@ -42,6 +51,21 @@ fuda show <id>
 There is no `fuda reply`, and that is the point: a section is answered by whoever it is addressed to, and most of them are addressed to you.
 
 Nothing assumes a particular host or platform. Every value is configuration, and `.env.example` lists them. On the server only the database connection has no default; the command also needs `FUDA_SENDER`, as above.
+
+## Development
+
+Needs [Bun](https://bun.sh) and a PostgreSQL to point `FUDA_DATABASE_URL` at. The compose file does not publish the database port, so for local development run your own, for example `docker run -d -p 5432:5432 -e POSTGRES_USER=fuda -e POSTGRES_PASSWORD=fuda postgres:18`.
+
+```bash
+bun install
+bun run dev            # server, with migrations
+bun run dev:web        # browser UI with hot reload
+bun run typecheck
+bun run lint
+bun run test           # unit tests
+bun run test:integration   # needs FUDA_TEST_DATABASE_URL; empties that database
+bun run test:e2e           # same, and drives the screen in a browser
+```
 
 ## Interfaces
 
