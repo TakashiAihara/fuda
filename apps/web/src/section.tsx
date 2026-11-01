@@ -5,9 +5,10 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import type { Section as Row } from './api.ts';
-import { complaint, sendReply, setPostponed } from './api.ts';
+import { complaint, raiseItem, sendReply, setPostponed } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
+import { raisedItem, type RaiseOrigin } from './raise.ts';
 
 /**
  * One section: what it says, and whatever can be done with it from here.
@@ -15,7 +16,15 @@ import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
  * Replying happens inside the detail pane. There is nowhere else to go, and a
  * round trip to somewhere else is the thing this project exists to remove.
  */
-export function Section({ section, person }: { section: Row; person: string | null }) {
+export function Section({
+  section,
+  person,
+  origin,
+}: {
+  section: Row;
+  person: string | null;
+  origin: RaiseOrigin;
+}) {
   return (
     <div className="section">
       <div className="section-head">
@@ -56,11 +65,11 @@ export function Section({ section, person }: { section: Row; person: string | nu
       )}
 
       {section.replyForm === 'choice' ? (
-        <Choice section={section} person={person} />
+        <Choice section={section} person={person} origin={origin} />
       ) : section.replyForm === 'free_text' ||
         section.replyForm === 'approval' ||
         section.replyForm === 'external_tool' ? (
-        <Form section={section} person={person} />
+        <Form section={section} person={person} origin={origin} />
       ) : (
         <ReadOnly section={section} />
       )}
@@ -129,7 +138,7 @@ function Later({ section }: { section: Row }) {
   );
 }
 
-function Choice({ section, person }: { section: Row; person: string | null }) {
+function Choice({ section, person, origin }: { section: Row; person: string | null; origin: RaiseOrigin }) {
   const options = section.body.options ?? [];
   const [note, setNote] = useState('');
   const answer = useAction(
@@ -241,13 +250,83 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
         </div>
       </div>
 
+      <Raise section={section} person={person} origin={origin} />
       <Complaint said={answer.said} />
     </div>
   );
 }
 
+/**
+ * An unrelated thought, captured without leaving the item it came up beside.
+ *
+ * It is not an answer: the section stays as it was, and the new item records
+ * where it was raised.
+ */
+function Raise({ section, person, origin }: { section: Row; person: string | null; origin: RaiseOrigin }) {
+  const client = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [raised, setRaised] = useState<string | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  const item = person === null ? null : raisedItem(text, origin, section.id, person);
+
+  const raise = useMutation({
+    mutationFn: (body: NonNullable<typeof item>) => raiseItem(body).then(() => body.summary),
+    onSuccess: (summary) => {
+      setOpen(false);
+      setText('');
+      setSaid(null);
+      setRaised(summary);
+      void client.invalidateQueries();
+    },
+    onError: (error: unknown) => setSaid(complaint(error)),
+  });
+
+  return (
+    <>
+      {open ? (
+        <div className="other">
+          <textarea
+            className="field"
+            aria-label="separate item"
+            value={text}
+            disabled={raise.isPending}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <div className="reply-actions">
+            <button
+              className="btn primary"
+              disabled={raise.isPending || item === null}
+              onClick={() => item !== null && raise.mutate(item)}
+            >
+              raise
+            </button>
+            <button className="btn ghost" disabled={raise.isPending} onClick={() => setOpen(false)}>
+              cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="reply-actions">
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setRaised(null);
+              setOpen(true);
+            }}
+          >
+            raise a separate item
+          </button>
+        </div>
+      )}
+      {raised === null ? null : <p className="reply-hint">raised: {raised}</p>}
+      <Complaint said={said} />
+    </>
+  );
+}
+
 /** Free text, approval and external tool: each settled by one control, plus postponing. */
-function Form({ section, person }: { section: Row; person: string | null }) {
+function Form({ section, person, origin }: { section: Row; person: string | null; origin: RaiseOrigin }) {
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const answer = useAction(
@@ -367,6 +446,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
         </div>
       ) : null}
 
+      <Raise section={section} person={person} origin={origin} />
       <Complaint said={answer.said} />
     </div>
   );

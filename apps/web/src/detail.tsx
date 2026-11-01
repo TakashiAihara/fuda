@@ -74,7 +74,12 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
       <div className="scroll">
         <div className="sections">
           {item.data.sections.map((section) => (
-            <Section key={section.id} section={section} person={person} />
+            <Section
+              key={section.id}
+              section={section}
+              person={person}
+              origin={{ id: item.data.id, sender: item.data.sender, attribution: item.data.attribution }}
+            />
           ))}
         </div>
       </div>
