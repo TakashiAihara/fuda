@@ -5,9 +5,10 @@ import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import type { Section as Row } from './api.ts';
-import { complaint, sendReply, setPostponed } from './api.ts';
+import { complaint, raiseItem, sendReply, setPostponed } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
+import { raisableFrom, raiseComplaint, raisedItem, type RaiseOrigin } from './raise.ts';
 
 /**
  * One section: what it says, and whatever can be done with it from here.
@@ -15,7 +16,17 @@ import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
  * Replying happens inside the detail pane. There is nowhere else to go, and a
  * round trip to somewhere else is the thing this project exists to remove.
  */
-export function Section({ section, person }: { section: Row; person: string | null }) {
+export function Section({
+  section,
+  person,
+  origin,
+  onOpen,
+}: {
+  section: Row;
+  person: string | null;
+  origin: RaiseOrigin;
+  onOpen: (id: string) => void;
+}) {
   return (
     <div className="section">
       <div className="section-head">
@@ -64,6 +75,12 @@ export function Section({ section, person }: { section: Row; person: string | nu
       ) : (
         <ReadOnly section={section} />
       )}
+
+      {/* Here rather than inside a reply form: those swap out as the section's
+          state changes, and the typed text must outlive that. */}
+      {person !== null && raisableFrom(section.replyForm, answerableBy(section.recipient, person)) ? (
+        <Raise section={section} person={person} origin={origin} onOpen={onOpen} />
+      ) : null}
     </div>
   );
 }
@@ -243,6 +260,108 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
 
       <Complaint said={answer.said} />
     </div>
+  );
+}
+
+/**
+ * An unrelated thought, captured without leaving the item it came up beside.
+ *
+ * It is not an answer: the section stays as it was, and the new item records
+ * where it was raised.
+ */
+function Raise({
+  section,
+  person,
+  origin,
+  onOpen,
+}: {
+  section: Row;
+  person: string;
+  origin: RaiseOrigin;
+  onOpen: (id: string) => void;
+}) {
+  const client = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [raised, setRaised] = useState<{ id: string; summary: string } | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
+  const item = raisedItem(text, origin, section.id, person);
+
+  const raise = useMutation({
+    mutationFn: (body: NonNullable<typeof item>) =>
+      raiseItem(body).then(({ id }) => ({ id, summary: body.summary })),
+    onSuccess: (made) => {
+      setOpen(false);
+      setText('');
+      setSaid(null);
+      setRaised(made);
+      void client.invalidateQueries();
+    },
+    onError: (error: unknown) => setSaid(raiseComplaint(error)),
+  });
+
+  return (
+    <>
+      {open ? (
+        <div className="other">
+          <textarea
+            className="field"
+            aria-label="separate item"
+            value={text}
+            disabled={raise.isPending}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <div className="reply-actions">
+            <button
+              className="btn primary"
+              disabled={raise.isPending || item === null}
+              onClick={() => item !== null && raise.mutate(item)}
+            >
+              raise
+            </button>
+            <button
+              className="btn ghost"
+              disabled={raise.isPending}
+              onClick={() => {
+                setOpen(false);
+                setText('');
+                setSaid(null);
+              }}
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="reply-actions">
+          <button
+            className="btn ghost"
+            onClick={() => {
+              setRaised(null);
+              setOpen(true);
+            }}
+          >
+            raise a separate item
+          </button>
+        </div>
+      )}
+      {raised === null ? null : (
+        <p className="reply-hint">
+          {/* A real href so it can be opened in a new tab; a plain click selects in
+              place, so typed text, the cache and the live connection survive. */}
+          <a
+            href={`?item=${encodeURIComponent(raised.id)}`}
+            onClick={(event) => {
+              event.preventDefault();
+              onOpen(raised.id);
+            }}
+          >
+            raised: {raised.summary}
+          </a>
+        </p>
+      )}
+      <Complaint said={said} />
+    </>
   );
 }
 

@@ -9,7 +9,15 @@ import { Section } from './section.tsx';
 // retry loop against a failing server.
 const marked = new Set<string>();
 
-export function Detail({ id, person }: { id: string; person: string | null }) {
+export function Detail({
+  id,
+  person,
+  onOpen,
+}: {
+  id: string;
+  person: string | null;
+  onOpen: (id: string) => void;
+}) {
   const item = useQuery({ queryKey: ['item', id], queryFn: () => readItem(id) });
   const client = useQueryClient();
 
@@ -74,7 +82,13 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
       <div className="scroll">
         <div className="sections">
           {item.data.sections.map((section) => (
-            <Section key={section.id} section={section} person={person} />
+            <Section
+              key={section.id}
+              section={section}
+              person={person}
+              origin={{ id: item.data.id, sender: item.data.sender, attribution: item.data.attribution }}
+              onOpen={onOpen}
+            />
           ))}
         </div>
       </div>
