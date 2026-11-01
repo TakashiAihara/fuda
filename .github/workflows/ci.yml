@@ -61,9 +61,25 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun run test:integration
+      # The same script a person runs before pushing, so the two cannot drift.
+      # It covers everything the check job runs, plus the integration suites.
+      - run: bun run check
         env:
           FUDA_TEST_DATABASE_URL: postgres://fuda:fuda@localhost:5432/fuda_test
+
+      # The suites build their database from the migrations, so a schema.ts that
+      # no longer matches them goes unnoticed by every test. Generating again
+      # must produce nothing.
+      - name: migrations match schema.ts
+        run: |
+          set -euo pipefail
+          bun run db:generate
+          drift=$(git status --porcelain --untracked-files=all -- apps/server/drizzle)
+          if [ -n "$drift" ]; then
+            echo "schema.ts and the migrations have drifted apart:"
+            echo "$drift"
+            exit 1
+          fi
 
   e2e:
     name: the screen, driven in a browser
@@ -90,6 +106,15 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(bunx playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+      # Only the browser download is cached. The system packages --with-deps
+      # installs are not under this path, so the install below still runs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:e2e
         env:

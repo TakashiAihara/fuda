@@ -1,14 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 import { PERSON_IDENTITY, resolveTestDatabaseUrl } from './e2e/database.ts';
 
-const PORT = 18787;
+const PORT = Number(process.env['FUDA_E2E_PORT'] ?? 18787);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
-
-/**
- * Resolved while the config loads, so a run pointed at somebody's real database
- * stops before anything is built or started.
- */
-const databaseUrl = resolveTestDatabaseUrl(process.env);
 
 export default defineConfig({
   testDir: './e2e',
@@ -34,7 +28,12 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
-      FUDA_DATABASE_URL: databaseUrl,
+      // Read only when the server is started, so listing the tests needs no
+      // database, while a run pointed at somebody's real database still stops
+      // before anything is built or started.
+      get FUDA_DATABASE_URL() {
+        return resolveTestDatabaseUrl(process.env);
+      },
       FUDA_PORT: String(PORT),
       FUDA_BASE_URL: ORIGIN,
       FUDA_PERSON_IDENTITY: PERSON_IDENTITY,
