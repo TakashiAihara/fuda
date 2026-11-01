@@ -203,6 +203,22 @@ describe.skipIf(!url)('the fuda command', () => {
     expect(anonymous.err).toContain('who is writing');
   });
 
+  it('refuses a flag that belongs to another subcommand, and one nobody has', async () => {
+    const cases: [string[], string][] = [
+      [['show', '01ABC', '--state', 'all'], '--state'],
+      [['write', '--recipient', 'person'], '--recipient'],
+      [['list', '--bogus'], '--bogus'],
+    ];
+
+    for (const [args, flag] of cases) {
+      const attempt = await fuda(args);
+
+      expect(attempt.code).toBe(1);
+      expect(attempt.err).toContain(flag);
+      expect(attempt.out).toBe('');
+    }
+  });
+
   it('has no way to answer, defer or close', async () => {
     // Not an oversight. Those belong to whoever a section is addressed to, and
     // leaving them out of the agent's tool is the enforcement.
