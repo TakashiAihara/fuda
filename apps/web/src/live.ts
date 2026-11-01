@@ -41,7 +41,7 @@ export function gathered(
 /**
  * Refetches what a change can touch: the list and the items. Who the person is
  * does not change, so a loaded person is left alone; a failed one is asked
- * again, since the stream coming back is the only retry it gets.
+ * again, since with retries off React Query will not ask again by itself.
  */
 export function changed(client: QueryClient): Promise<void> {
   return Promise.all([

@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { changed, gathered } from './live.ts';
 
@@ -73,15 +73,18 @@ describe('what a change refetches', () => {
     expect(client.getQueryState(['person'])?.isInvalidated).toBe(false);
   });
 
-  it('asks again for a person that failed to load', async () => {
+  it('asks again for a person that failed to load, and gets them', async () => {
     const client = new QueryClient();
+    const asked = vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue('someone');
+    const observer = new QueryObserver(client, { queryKey: ['person'], queryFn: asked, retry: false });
+    const unsubscribe = observer.subscribe(() => undefined);
 
-    await client
-      .fetchQuery({ queryKey: ['person'], queryFn: () => Promise.reject(new Error('down')), retry: false })
-      .catch(() => undefined);
+    await vi.waitFor(() => expect(observer.getCurrentResult().status).toBe('error'));
     await changed(client);
 
-    expect(client.getQueryState(['person'])?.isInvalidated).toBe(true);
+    expect(asked).toHaveBeenCalledTimes(2);
+    expect(observer.getCurrentResult().data).toBe('someone');
+    unsubscribe();
   });
 });
 

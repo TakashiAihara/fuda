@@ -179,7 +179,8 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
       <div className="reply">
         <p className="reply-hint">answered by {section.answeredBy ?? 'someone'}</p>
         {shown === null ? null : <p className="answered-note">{shown}</p>}
-        <Complaint said={answer.said ?? postpone.said} />
+        <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -195,7 +196,8 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
             <Later section={section} postpone={postpone} />
           </div>
         ) : null}
-        <Complaint said={answer.said ?? postpone.said} />
+        <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -204,7 +206,8 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     return (
       <div className="reply">
         <p className="reply-hint">{hint(section)}</p>
-        <Complaint said={answer.said ?? postpone.said} />
+        <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -271,7 +274,8 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
         </div>
       </div>
 
-      <Complaint said={answer.said ?? postpone.said} />
+      <Complaint said={answer.said} />
+      <Complaint said={postpone.said} />
     </div>
   );
 }
@@ -401,7 +405,8 @@ function Form({ section, person }: { section: Row; person: string | null }) {
       <div className="reply">
         <p className="reply-hint">answered by {section.answeredBy ?? 'someone'}</p>
         {said === null ? null : <p className="answered-note">{said}</p>}
-        <Complaint said={answer.said ?? postpone.said} />
+        <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -415,7 +420,8 @@ function Form({ section, person }: { section: Row; person: string | null }) {
             <Later section={section} postpone={postpone} />
           </div>
         ) : null}
-        <Complaint said={answer.said ?? postpone.said} />
+        <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -424,7 +430,8 @@ function Form({ section, person }: { section: Row; person: string | null }) {
     return (
       <div className="reply">
         <p className="reply-hint">{hint(section)}</p>
-        <Complaint said={answer.said ?? postpone.said} />
+        <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -500,7 +507,8 @@ function Form({ section, person }: { section: Row; person: string | null }) {
         </div>
       ) : null}
 
-      <Complaint said={answer.said ?? postpone.said} />
+      <Complaint said={answer.said} />
+      <Complaint said={postpone.said} />
     </div>
   );
 }
