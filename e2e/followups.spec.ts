@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { createDatabase, type Database } from '../apps/server/src/db/client.ts';
-import { emptyDatabase, PERSON_IDENTITY, resolveTestDatabaseUrl } from './database.ts';
+import { emptyDatabase } from '../apps/server/src/db/empty.ts';
+import { PERSON_IDENTITY, resolveTestDatabaseUrl } from './database.ts';
 
 /**
  * What the screen says when the network does not do what it was asked.
