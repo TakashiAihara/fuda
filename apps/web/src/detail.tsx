@@ -87,6 +87,7 @@ export function Detail({
               key={section.id}
               section={section}
               person={person}
+              closed={item.data.closedAt !== null}
               origin={{ id: item.data.id, sender: item.data.sender, attribution: item.data.attribution }}
               onOpen={onOpen}
             />

@@ -21,11 +21,13 @@ export function Section({
   section,
   person,
   origin,
+  closed,
   onOpen,
 }: {
   section: Row;
   person: string | null;
   origin: RaiseOrigin;
+  closed: boolean;
   onOpen: (id: string) => void;
 }) {
   return (
@@ -69,11 +71,11 @@ export function Section({
       )}
 
       {section.replyForm === 'choice' ? (
-        <Choice section={section} person={person} />
+        <Choice section={section} person={person} closed={closed} />
       ) : section.replyForm === 'free_text' ||
         section.replyForm === 'approval' ||
         section.replyForm === 'external_tool' ? (
-        <Form section={section} person={person} />
+        <Form section={section} person={person} closed={closed} />
       ) : (
         <ReadOnly section={section} />
       )}
@@ -158,7 +160,7 @@ function Later({ section, postpone }: { section: Row; postpone: Postpone }) {
   );
 }
 
-function Choice({ section, person }: { section: Row; person: string | null }) {
+function Choice({ section, person, closed }: { section: Row; person: string | null; closed: boolean }) {
   const options = section.body.options ?? [];
   const [note, setNote] = useState('');
   const answer = useAction(
@@ -185,7 +187,12 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     );
   }
 
-  const controls = controlsFor(section.replyForm, section.state, answerableBy(section.recipient, person));
+  const controls = controlsFor(
+    section.replyForm,
+    section.state,
+    answerableBy(section.recipient, person),
+    closed,
+  );
 
   if (section.state === 'deferred') {
     return (
@@ -383,7 +390,7 @@ function Raise({
 }
 
 /** Free text, approval and external tool: each settled by one control, plus postponing. */
-function Form({ section, person }: { section: Row; person: string | null }) {
+function Form({ section, person, closed }: { section: Row; person: string | null; closed: boolean }) {
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const answer = useAction(
@@ -396,7 +403,12 @@ function Form({ section, person }: { section: Row; person: string | null }) {
   );
   const postpone = usePostpone(section);
 
-  const controls = controlsFor(section.replyForm, section.state, answerableBy(section.recipient, person));
+  const controls = controlsFor(
+    section.replyForm,
+    section.state,
+    answerableBy(section.recipient, person),
+    closed,
+  );
 
   if (section.state === 'answered') {
     const said = answeredText(section);
