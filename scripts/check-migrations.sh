@@ -21,7 +21,10 @@ if ! printf '%s\n' "$out" | grep -qF 'No schema changes, nothing to migrate'; th
   exit 1
 fi
 
-drift=$(git status --porcelain --untracked-files=all -- apps/server/drizzle)
+drift=$(git status --porcelain --untracked-files=all -- apps/server/drizzle) || {
+  echo "check-migrations: git status failed, so drift cannot be checked" >&2
+  exit 1
+}
 if [ -n "$drift" ]; then
   echo "check-migrations: schema.ts and the migrations have drifted apart:" >&2
   printf '%s\n' "$drift" >&2
