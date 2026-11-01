@@ -233,9 +233,8 @@ export function createItemRepository(database: Database) {
         .from(itemList)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(
-          // Unanswered items come first as a group...
-          sql`(${unansweredCount} = 0)`,
-          // ...oldest first inside it, and nulls (everything else) after.
+          // Unanswered items first, oldest first; an item with nothing
+          // unanswered has no oldest time, so nulls last puts it after them.
           sql`${oldestUnansweredAt} asc nulls last`,
           desc(itemList.createdAt),
           // A unique last key, so an offset cannot land between two rows that

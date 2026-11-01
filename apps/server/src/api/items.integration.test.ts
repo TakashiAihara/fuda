@@ -389,42 +389,40 @@ describe.skipIf(!url)('items over HTTP', () => {
       `;
     };
 
-    const defer = async (itemId: string, position: number) => {
-      await database.sql`
-        update sections set state = 'deferred'
-        where item_id = ${itemId} and position = ${position}
-      `;
-    };
-
     const writeItem = async (summary: string, sections: unknown[]) => {
       const written = await write({ summary, sender: 'pm', sections });
-      return ((await written.json()) as { id: string }).id;
+      return (await written.json()) as { id: string; sections: { id: string }[] };
     };
 
     const onlyWorkerWaits = await writeItem('only the worker waits', [
       pickup('person'),
       question('session:worker'),
     ]);
-    await age(onlyWorkerWaits, 1, 5 * 24);
+    await age(onlyWorkerWaits.id, 1, 5 * 24);
 
     const sinceAnHour = await writeItem('the person waits an hour', [question('person')]);
-    await age(sinceAnHour, 0, 1);
+    await age(sinceAnHour.id, 0, 1);
 
     const personWaitsTwoDays = await writeItem('the person waits two days', [question('person')]);
-    await age(personWaitsTwoDays, 0, 2 * 24);
+    await age(personWaitsTwoDays.id, 0, 2 * 24);
 
     // Two of the person's own, three days and now: the older one places it.
     const twice = await writeItem('the person waits twice', [question('person'), question('person')]);
-    await age(twice, 0, 3 * 24);
+    await age(twice.id, 0, 3 * 24);
 
     const bothWait = await writeItem('both wait, the worker for nine days', [
       question('person'),
       question('session:worker'),
       pickup('session:worker'),
-      question('session:worker'),
+      question('person'),
     ]);
-    await age(bothWait, 1, 9 * 24);
-    await defer(bothWait, 3);
+    await age(bothWait.id, 1, 9 * 24);
+    const deferred = await app.request(`/api/sections/${bothWait.sections[3]?.id}/defer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(deferred.status).toBe(200);
 
     const listed = async (query: string) =>
       ((await (await app.request(`/api/items?${query}`)).json()) as { items: ListedRow[] }).items;
@@ -435,7 +433,7 @@ describe.skipIf(!url)('items over HTTP', () => {
       ['the person waits twice', 2, 0, 0],
       ['the person waits two days', 1, 0, 0],
       ['the person waits an hour', 1, 0, 0],
-      ['both wait, the worker for nine days', 1, 0, 0],
+      ['both wait, the worker for nine days', 1, 1, 0],
       ['only the worker waits', 0, 0, 1],
     ]);
     // Same JSON shape as the unfiltered list: an ISO timestamp, or null.
@@ -445,6 +443,12 @@ describe.skipIf(!url)('items over HTTP', () => {
       '0000-00-00T00:00:00.000Z',
       '0000-00-00T00:00:00.000Z',
       null,
+    ]);
+
+    // The other way round: what the person put off is not the worker's.
+    expect(counts(await listed('recipient=session:worker'))).toEqual([
+      ['both wait, the worker for nine days', 1, 0, 1],
+      ['only the worker waits', 1, 0, 0],
     ]);
 
     expect(counts(await listed(''))).toEqual([
