@@ -1,5 +1,5 @@
 import { canAnswer, canClose, checkReply, type Reply, type ReplyForm } from '@fuda/core';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, exists, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { items, sections } from '../db/schema.ts';
 import type { StoredItem, StoredSection } from './items.ts';
@@ -31,7 +31,7 @@ export function createAnsweringRepository(database: Database) {
 
   const findSection = async (id: string) => {
     const [row] = await db
-      .select({ section: sections, itemSender: items.sender })
+      .select({ section: sections, closedAt: items.closedAt })
       .from(sections)
       .innerJoin(items, eq(items.id, sections.itemId))
       .where(eq(sections.id, id))
@@ -39,6 +39,20 @@ export function createAnsweringRepository(database: Database) {
 
     return row;
   };
+
+  // Part of the same WHERE as the state, so a close committed before the
+  // update starts refuses it. An update already running when the close commits
+  // still lands, which leaves the same rows as answering first and closing after.
+  const itemOpen = () =>
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(items)
+        .where(and(eq(items.id, sections.itemId), isNull(items.closedAt))),
+    );
+
+  const stale = (closedAt: Date | null, otherwise: string) =>
+    refuse('not_now', closedAt === null ? otherwise : 'this item is closed');
 
   return {
     /**
@@ -71,11 +85,13 @@ export function createAnsweringRepository(database: Database) {
           answeredBy: sender,
           settledAt: new Date(),
         })
-        .where(and(eq(sections.id, id), eq(sections.state, 'unanswered')))
+        .where(and(eq(sections.id, id), eq(sections.state, 'unanswered'), itemOpen()))
         .returning();
 
       if (updated === undefined) {
-        return refuse('not_now', 'this is no longer waiting for an answer');
+        const now = await findSection(id);
+
+        return stale(now?.closedAt ?? null, 'this is no longer waiting for an answer');
       }
 
       return { ok: true, value: updated };
@@ -97,11 +113,13 @@ export function createAnsweringRepository(database: Database) {
       const [updated] = await db
         .update(sections)
         .set({ state: to })
-        .where(and(eq(sections.id, id), eq(sections.state, from)))
+        .where(and(eq(sections.id, id), eq(sections.state, from), itemOpen()))
         .returning();
 
       if (updated === undefined) {
-        return refuse('not_now', `this is not ${from}`);
+        const now = await findSection(id);
+
+        return stale(now?.closedAt ?? null, `this is not ${from}`);
       }
 
       return { ok: true, value: updated };

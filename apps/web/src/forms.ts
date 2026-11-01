@@ -5,8 +5,8 @@ import type { ApprovalReply, FreeTextReply, ReplyForm, SectionState } from '@fud
  *
  * `answer` covers the form that settles it and the `later` beside it, since the
  * server accepts a postpone exactly where it accepts an answer. Both follow who
- * the section is for and what state it is in, so a control is only drawn where
- * the server would accept it. `pickup` has no
+ * the section is for, what state it is in and whether its item is closed, so a
+ * control is only drawn where the server would accept it. `pickup` has no
  * answer and nothing to postpone: it is taken and finished, not answered.
  */
 export type Controls = { answer: boolean; resume: boolean };
@@ -15,8 +15,9 @@ export function controlsFor(
   replyForm: ReplyForm | null,
   state: SectionState | null,
   answerable: boolean,
+  closed: boolean,
 ): Controls {
-  const answers = replyForm !== null && replyForm !== 'pickup' && answerable;
+  const answers = replyForm !== null && replyForm !== 'pickup' && answerable && !closed;
 
   return {
     answer: answers && state === 'unanswered',

@@ -304,6 +304,54 @@ describe.skipIf(!url)('answering over HTTP', () => {
     });
   });
 
+  describe('an item that is closed', () => {
+    const closedWith = async (deferred = false) => {
+      const item = await write([question()]);
+      const id = item.sections[0]?.id as string;
+
+      if (deferred) await post(`/api/sections/${id}/defer`);
+
+      await post(`/api/items/${item.id}/close`);
+
+      return { itemId: item.id, id };
+    };
+
+    const stored = async (itemId: string) => {
+      const response = await app.request(`/api/items/${itemId}`);
+      return ((await response.json()) as { sections: Section[] }).sections[0] as Section;
+    };
+
+    it('refuses a reply and leaves the section as it was', async () => {
+      const { itemId, id } = await closedWith();
+
+      const response = await post(`/api/sections/${id}/reply`, { reply: { text: 'too late' } });
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: 'this item is closed', reason: 'not_now' });
+      expect(await stored(itemId)).toMatchObject({ state: 'unanswered', reply: null, answeredBy: null });
+    });
+
+    it('refuses to postpone and leaves the section as it was', async () => {
+      const { itemId, id } = await closedWith();
+
+      const response = await post(`/api/sections/${id}/defer`);
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: 'this item is closed', reason: 'not_now' });
+      expect((await stored(itemId)).state).toBe('unanswered');
+    });
+
+    it('refuses to resume and leaves the section as it was', async () => {
+      const { itemId, id } = await closedWith(true);
+
+      const response = await post(`/api/sections/${id}/resume`);
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: 'this item is closed', reason: 'not_now' });
+      expect((await stored(itemId)).state).toBe('deferred');
+    });
+  });
+
   describe('the marks an item carries', () => {
     it('marks an item read, and stays marked', async () => {
       const item = await write([question()]);

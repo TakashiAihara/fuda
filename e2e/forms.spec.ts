@@ -180,6 +180,24 @@ test('an item is closed with a section still waiting, and leaves the list', asyn
   expect(onlySection(stored).state).toBe('unanswered');
 });
 
+test('a closed item offers no way to answer or postpone', async ({ page, request }) => {
+  const item = await writeItem(request, question('free_text', {}));
+  const detail = await open(page, item.summary);
+
+  await expect(detail.getByLabel('your answer')).toBeVisible();
+  await expect(detail.getByRole('button', { name: 'later' })).toBeVisible();
+
+  await detail.getByRole('button', { name: 'close item' }).click();
+  await expect(detail.getByText('closed', { exact: true })).toBeVisible();
+
+  await expect(detail.getByLabel('your answer')).toHaveCount(0);
+  await expect(detail.getByRole('button', { name: 'later' })).toHaveCount(0);
+  await expect(
+    detail.getByText('This item is closed, so nothing here can be answered any more.'),
+  ).toBeVisible();
+  expect(onlySection(await readItem(request, item.id)).state).toBe('unanswered');
+});
+
 test('a section body is rendered as markdown without raw HTML', async ({ page, request }) => {
   // The question is there to put the item on the list, which shows only what
   // is owed an answer; a report on its own would never be reachable by a click.
