@@ -5,7 +5,7 @@
 # own "nothing to migrate" line has to be there too.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 out=$(bun run db:generate </dev/null 2>&1)
 status=$?
