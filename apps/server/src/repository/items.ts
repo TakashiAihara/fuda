@@ -43,17 +43,20 @@ export class OriginRefused extends Error {
 
 const ORIGIN_CONSTRAINTS = new Set(['items_origin_fk', 'items_origin_pair_check']);
 
-// The driver wraps the PostgreSQL error as `cause`, so the constraint name is read from there.
-function refusesOrigin(error: unknown): boolean {
-  const cause = error instanceof Error ? error.cause : undefined;
-
+function namesOriginConstraint(error: unknown): boolean {
   return (
-    typeof cause === 'object' &&
-    cause !== null &&
-    'constraint_name' in cause &&
-    typeof cause.constraint_name === 'string' &&
-    ORIGIN_CONSTRAINTS.has(cause.constraint_name)
+    typeof error === 'object' &&
+    error !== null &&
+    'constraint_name' in error &&
+    typeof error.constraint_name === 'string' &&
+    ORIGIN_CONSTRAINTS.has(error.constraint_name)
   );
+}
+
+// Drizzle wraps the driver's PostgreSQL error as `cause`; the error itself is
+// checked too, so an unwrapped one is not answered as a 500.
+function refusesOrigin(error: unknown): boolean {
+  return namesOriginConstraint(error) || (error instanceof Error && namesOriginConstraint(error.cause));
 }
 
 export function createItemRepository(database: Database) {
@@ -203,8 +206,9 @@ export function createItemRepository(database: Database) {
           desc(itemList.createdAt),
           // A unique last key, so an offset cannot land between two rows that
           // tie on everything above and show one twice and the other never.
-          // Descending, because the ids are time-ordered and the key above is
-          // newest first; ascending would turn the order around inside a tie.
+          // Descending, to agree with created_at desc for the rows that reach
+          // it. Inside the unanswered group a tie on the oldest unanswered time
+          // also falls through to here, so it comes out newest first there too.
           desc(itemList.id),
         )
         .limit(query.limit ?? 100)
