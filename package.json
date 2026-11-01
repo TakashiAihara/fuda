@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
-    "check": "test -n \"$FUDA_TEST_DATABASE_URL\" || { echo 'check: FUDA_TEST_DATABASE_URL is not set, so test:integration would skip' >&2; exit 1; }; bun run typecheck && bun run lint && bun run fmt:check && bun run test && bun run test:integration && bun run build:web",
+    "check": "bun run check:env && bun run typecheck && bun run lint && bun run fmt:check && bun run test && bun run test:integration && bun run build:web",
+    "check:env": "test -n \"$FUDA_TEST_DATABASE_URL\" || { echo 'check: FUDA_TEST_DATABASE_URL is not set, so test:integration would skip' >&2; exit 1; }",
     "db:migrate": "bun run --cwd apps/server db:migrate",
     "db:generate": "bun run --cwd apps/server db:generate"
   },
