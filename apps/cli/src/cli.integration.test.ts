@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { createDatabase, type Database } from '@fuda/server/src/db/client.ts';
 import { assertDisposable } from '@fuda/server/src/db/disposable.ts';
+import { emptyDatabase } from '@fuda/server/src/db/empty.ts';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const url = process.env['FUDA_TEST_DATABASE_URL'];
@@ -82,7 +83,7 @@ describe.skipIf(!url)('the fuda command', () => {
   });
 
   beforeEach(async () => {
-    await database.sql`truncate table sections, items restart identity cascade`;
+    await emptyDatabase(database);
   });
 
   const exchange = {

@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { createDatabase, type Database } from '../apps/server/src/db/client.ts';
-import { emptyDatabase, PERSON_IDENTITY, resolveTestDatabaseUrl } from './database.ts';
+import { emptyDatabase } from '../apps/server/src/db/empty.ts';
+import { PERSON_IDENTITY, resolveTestDatabaseUrl } from './database.ts';
 
 /**
  * Raising a separate item from beside a reply form.
@@ -31,12 +32,10 @@ type ItemRow = {
   sections: SectionRow[];
 };
 
-const databaseUrl = resolveTestDatabaseUrl(process.env);
-
 let database: Database;
 
 test.beforeAll(() => {
-  database = createDatabase(databaseUrl);
+  database = createDatabase(resolveTestDatabaseUrl(process.env));
 });
 
 test.afterAll(async () => {

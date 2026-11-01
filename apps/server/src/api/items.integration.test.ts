@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app.ts';
 import { assertDisposable } from '../db/disposable.ts';
+import { emptyDatabase } from '../db/empty.ts';
 import { createDatabase, type Database } from '../db/client.ts';
 import { runMigrations } from '../db/migrate.ts';
 import { createChanges } from '../events.ts';
@@ -45,7 +46,7 @@ describe.skipIf(!url)('items over HTTP', () => {
   });
 
   beforeEach(async () => {
-    await database.sql`truncate table sections, items restart identity cascade`;
+    await emptyDatabase(database);
   });
 
   it('takes an exchange and gives it back', async () => {

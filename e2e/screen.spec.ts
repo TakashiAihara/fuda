@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { createDatabase, type Database } from '../apps/server/src/db/client.ts';
-import { emptyDatabase, PERSON_IDENTITY, resolveTestDatabaseUrl } from './database.ts';
+import { emptyDatabase } from '../apps/server/src/db/empty.ts';
+import { PERSON_IDENTITY, resolveTestDatabaseUrl } from './database.ts';
 
 /**
  * The screen, driven the way a person drives it: open the list, open an item,
@@ -27,12 +28,10 @@ type ItemRow = { id: string; summary: string; sections: SectionRow[] };
 const RECOMMENDED = { value: 'both', label: 'keep both readers', recommended: true };
 const OTHER = { value: 'one', label: 'keep one reader' };
 
-const databaseUrl = resolveTestDatabaseUrl(process.env);
-
 let database: Database;
 
 test.beforeAll(() => {
-  database = createDatabase(databaseUrl);
+  database = createDatabase(resolveTestDatabaseUrl(process.env));
 });
 
 test.afterAll(async () => {

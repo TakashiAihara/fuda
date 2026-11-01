@@ -16,8 +16,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
-    name: types, lint, format, unit tests
+  # The suites build their database from the migrations, so a schema.ts that no
+  # longer matches them goes unnoticed by every test. Needs no database, and is
+  # its own job so a failing lint or test cannot hide drift.
+  migrations:
+    name: migrations match schema.ts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -27,14 +30,10 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun run lint
-      - run: bun run fmt:check
-      - run: bun run test
-      - run: bun run build:web
+      - run: scripts/check-migrations.sh
 
-  integration:
-    name: integration tests against PostgreSQL
+  check:
+    name: types, lint, format, unit and integration tests, build
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -61,7 +60,8 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - run: bun run test:integration
+      # The same script a person runs before pushing, so the two cannot drift.
+      - run: bun run check
         env:
           FUDA_TEST_DATABASE_URL: postgres://fuda:fuda@localhost:5432/fuda_test
 
@@ -90,6 +90,23 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - name: Playwright version
+        id: playwright
+        run: |
+          set -euo pipefail
+          version=$(bunx playwright --version | cut -d' ' -f2)
+          test -n "$version" || { echo "could not read the Playwright version" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # ImageOS is set on the runner process, which the env context does not
+          # see, so it is read here and passed on as an output.
+          test -n "${ImageOS:-}" || { echo "ImageOS is not set" >&2; exit 1; }
+          echo "image=$ImageOS" >> "$GITHUB_OUTPUT"
+      # Only the browser download is cached. The system packages --with-deps
+      # installs are not under this path, so the install below still runs.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.image }}-${{ steps.playwright.outputs.version }}
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:e2e
         env:

@@ -136,6 +136,7 @@ describe('an item', () => {
     // Not every request that goes elsewhere names a place to go. Printing an
     // empty link would put a line in the output that says nothing.
     const unlinked = section({
+      kind: 'request',
       replyForm: 'external_tool',
       body: { text: 'sign in to the panel and confirm the deploy' },
     });
@@ -145,7 +146,7 @@ describe('an item', () => {
         '019ff5f5-a041-7cae-b500-fd404389867a  which name?',
         'from pm',
         '',
-        '  [019ff642-1111-7000-8000-00000000000a] question (external_tool) — unanswered → person',
+        '  [019ff642-1111-7000-8000-00000000000a] request (external_tool) — unanswered → person',
         '    sign in to the panel and confirm the deploy',
       ].join('\n'),
     );
@@ -174,6 +175,7 @@ describe('the answer', () => {
 
   it('says who settled an external tool, which carries nothing else', () => {
     const settled = section({
+      kind: 'request',
       replyForm: 'external_tool',
       state: 'answered',
       body: { text: 'review it there', link: 'https://example.com/pr/1' },
@@ -186,7 +188,7 @@ describe('the answer', () => {
         '019ff5f5-a041-7cae-b500-fd404389867a  which name?',
         'from pm',
         '',
-        '  [019ff642-1111-7000-8000-00000000000a] question (external_tool) — answered → person',
+        '  [019ff642-1111-7000-8000-00000000000a] request (external_tool) — answered → person',
         '    review it there',
         '    link: https://example.com/pr/1',
         '    answered by person:',
