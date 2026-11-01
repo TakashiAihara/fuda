@@ -517,3 +517,7 @@ body {
     min-height: 100vh;
   }
 }
+
+.image-alt {
+  color: var(--ink-soft);
+}

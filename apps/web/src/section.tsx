@@ -27,16 +27,16 @@ export function Section({ section, person }: { section: Row; person: string | nu
       </div>
 
       {/* Bodies come from agents. No rehype-raw, so HTML stays text, and no
-          images, which the browser would fetch the moment the item is opened —
+          image elements (only the alt is shown), which the browser would fetch the moment the item is opened —
           from any address the agent wrote, LAN included. A single newline is a
           line break, because agents write plain lines as often as markdown. */}
       <div className="body">
         <Markdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
-          disallowedElements={['img']}
-          unwrapDisallowed
           components={{
             a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+            img: ({ alt }) =>
+              alt === undefined || alt === '' ? null : <span className="image-alt">[{alt}]</span>,
           }}
         >
           {section.body.text}

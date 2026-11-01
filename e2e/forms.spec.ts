@@ -215,8 +215,10 @@ test('a section body is rendered as markdown without raw HTML', async ({ page, r
   await expect(detail.locator('strong', { hasText: 'first' })).toBeVisible();
   await expect(detail.locator('img')).toHaveCount(0);
   expect(await page.evaluate(() => (globalThis as { pwned?: number }).pwned)).toBeUndefined();
-  // Opening the item must not make the browser fetch an address an agent wrote.
+  // Opening the item must not make the browser fetch an address an agent wrote,
+  // and what the image was of is still said.
   expect(fetched).toEqual([]);
+  await expect(detail.getByText('[chart]', { exact: true })).toBeVisible();
 });
 
 test('a section addressed to someone else offers no controls, even reached by its link', async ({

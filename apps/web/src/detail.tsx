@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { closeItem, complaint, markRead, readItem, stillShowing } from './api.ts';
 import { Section } from './section.tsx';
+
+// Every item this page has asked to mark, kept for the page's lifetime rather
+// than the pane's: the pane is remounted per item. One attempt per item: a mark
+// that fails stays unread until the page is reloaded, which is cheaper than a
+// retry loop against a failing server.
+const marked = new Set<string>();
 
 export function Detail({ id, person }: { id: string; person: string | null }) {
   const item = useQuery({ queryKey: ['item', id], queryFn: () => readItem(id) });
   const client = useQueryClient();
-  // Every item this screen has asked to mark, kept for as long as the screen is
-  // open. One attempt per item: a mark that fails stays unread until the page
-  // is reloaded, which is cheaper than a retry loop against a failing server.
-  const marked = useRef(new Set<string>());
 
   const { mutate: markAsRead } = useMutation({
     mutationFn: (target: string) => markRead(target),
@@ -35,9 +37,9 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
 
   useEffect(() => {
     if (item.data === undefined || item.data.readAt !== null) return;
-    if (marked.current.has(id)) return;
+    if (marked.has(id)) return;
 
-    marked.current.add(id);
+    marked.add(id);
     markAsRead(id);
   }, [id, item.data, markAsRead]);
 

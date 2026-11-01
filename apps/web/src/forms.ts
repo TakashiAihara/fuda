@@ -20,7 +20,6 @@ export function controlsFor(
 
   return {
     answer: answers && state === 'unanswered',
-
     resume: answers && state === 'deferred',
   };
 }
