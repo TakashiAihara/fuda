@@ -34,6 +34,31 @@ export type ListQuery = {
   offset?: number | undefined;
 };
 
+/** The origin named is not one that can be stored: not found, not that item's own, or half of a pair. */
+export class OriginRefused extends Error {
+  constructor() {
+    super('the origin must name a section that belongs to the item it names, and both must be given');
+  }
+}
+
+const ORIGIN_CONSTRAINTS = new Set(['items_origin_fk', 'items_origin_pair_check']);
+
+function namesOriginConstraint(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'constraint_name' in error &&
+    typeof error.constraint_name === 'string' &&
+    ORIGIN_CONSTRAINTS.has(error.constraint_name)
+  );
+}
+
+// Drizzle wraps the driver's PostgreSQL error as `cause`; the error itself is
+// checked too, so an unwrapped one is not answered as a 500.
+function refusesOrigin(error: unknown): boolean {
+  return namesOriginConstraint(error) || (error instanceof Error && namesOriginConstraint(error.cause));
+}
+
 export function createItemRepository(database: Database) {
   const { db } = database;
 
@@ -43,47 +68,51 @@ export function createItemRepository(database: Database) {
      * is not a smaller exchange, it is a broken one.
      */
     async write(input: Item): Promise<ItemWithSections> {
-      return db.transaction(async (tx) => {
-        const [item] = await tx
-          .insert(items)
-          .values({
-            summary: input.summary,
-            sender: input.sender,
-            attribution: input.attribution,
-            originItemId: input.originItemId,
-            originSectionId: input.originSectionId,
-          })
-          .returning();
+      return db
+        .transaction(async (tx) => {
+          const [item] = await tx
+            .insert(items)
+            .values({
+              summary: input.summary,
+              sender: input.sender,
+              attribution: input.attribution,
+              originItemId: input.originItemId,
+              originSectionId: input.originSectionId,
+            })
+            .returning();
 
-        if (item === undefined) throw new Error('the item was not written');
+          if (item === undefined) throw new Error('the item was not written');
 
-        const now = new Date();
+          const now = new Date();
 
-        const written = await tx
-          .insert(sections)
-          .values(
-            input.sections.map((section, position) => {
-              const state = initialStateFor(section.replyForm);
+          const written = await tx
+            .insert(sections)
+            .values(
+              input.sections.map((section, position) => {
+                const state = initialStateFor(section.replyForm);
 
-              return {
-                itemId: item.id,
-                position,
-                kind: section.kind,
-                replyForm: section.replyForm,
-                recipient: section.recipient,
-                body: section.body,
-                state,
-                // Stamped here rather than defaulted in the database: the list
-                // orders by it, and a section that starts unanswered without
-                // one cannot be placed. The check constraint refuses it too.
-                unansweredSince: state === 'unanswered' ? now : null,
-              };
-            }),
-          )
-          .returning();
+                return {
+                  itemId: item.id,
+                  position,
+                  kind: section.kind,
+                  replyForm: section.replyForm,
+                  recipient: section.recipient,
+                  body: section.body,
+                  state,
+                  // Stamped here rather than defaulted in the database: the list
+                  // orders by it, and a section that starts unanswered without
+                  // one cannot be placed. The check constraint refuses it too.
+                  unansweredSince: state === 'unanswered' ? now : null,
+                };
+              }),
+            )
+            .returning();
 
-        return { ...item, sections: written };
-      });
+          return { ...item, sections: written };
+        })
+        .catch((error: unknown) => {
+          throw refusesOrigin(error) ? new OriginRefused() : error;
+        });
     },
 
     async read(id: string): Promise<ItemWithSections | null> {
@@ -177,7 +206,10 @@ export function createItemRepository(database: Database) {
           desc(itemList.createdAt),
           // A unique last key, so an offset cannot land between two rows that
           // tie on everything above and show one twice and the other never.
-          asc(itemList.id),
+          // Descending, to agree with created_at desc for the rows that reach
+          // it. Inside the unanswered group a tie on the oldest unanswered time
+          // also falls through to here, so it comes out newest first there too.
+          desc(itemList.id),
         )
         .limit(query.limit ?? 100)
         .offset(query.offset ?? 0);

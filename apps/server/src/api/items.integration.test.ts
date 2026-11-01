@@ -436,6 +436,36 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(secondItems.items.map((i) => i.summary)).toEqual(['asked third']);
   });
 
+  it('pages items that share a timestamp one at a time without skipping or repeating', async () => {
+    for (const summary of ['one', 'two', 'three', 'four']) {
+      await write({
+        summary,
+        sender: 'a',
+        sections: [{ kind: 'request', replyForm: 'pickup', body: { text: summary } }],
+      });
+    }
+
+    await database.sql`update items set created_at = '2026-01-01T00:00:00Z'`;
+
+    const paged: string[] = [];
+    for (const offset of [0, 1, 2, 3]) {
+      const page = await app.request(`/api/items?limit=1&offset=${offset}`);
+      const { items } = (await page.json()) as { items: { id: string }[] };
+
+      expect(items).toHaveLength(1);
+      paged.push(items[0]?.id as string);
+    }
+
+    const whole = await app.request('/api/items');
+    const all = ((await whole.json()) as { items: { id: string }[] }).items.map((i) => i.id);
+
+    expect(new Set(paged).size).toBe(4);
+    expect(paged).toEqual(all);
+    // Newer first, as the creation time orders everything else; the id stands
+    // in for the creation time among items that have the same one.
+    expect(all).toEqual(all.toSorted().toReversed());
+  });
+
   it('refuses an offset that is not a place in the list', async () => {
     const beforeTheStart = await app.request('/api/items?offset=-1');
     const notAPlace = await app.request('/api/items?offset=1.5');
@@ -447,17 +477,87 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(pastAnyList.status).toBe(400);
   });
 
-  it('refuses half an origin', async () => {
-    // An item raised beside something has to say beside what. Naming the item
-    // without the section, or the section without the item, is neither.
-    const written = await write({
-      summary: 'raised beside half a thing',
-      sender: 'a',
-      originItemId: '019ff5f5-a041-7cae-b500-fd404389867a',
-      sections: [{ kind: 'report', body: { text: 'x' } }],
+  describe('an origin', () => {
+    const parent = async () => {
+      const response = await write({
+        summary: 'the parent',
+        sender: 'a',
+        sections: [{ kind: 'question', replyForm: 'free_text', body: { text: 'which?' } }],
+      });
+      const item = (await response.json()) as { id: string; sections: { id: string }[] };
+
+      return { itemId: item.id, sectionId: item.sections[0]?.id as string };
+    };
+
+    const raisedBeside = (origin: Record<string, string>) =>
+      write({
+        summary: 'raised beside',
+        sender: 'a',
+        ...origin,
+        sections: [{ kind: 'report', body: { text: 'x' } }],
+      });
+
+    const countItems = async () => {
+      const listed = await app.request('/api/items?state=all');
+
+      return ((await listed.json()) as { items: unknown[] }).items.length;
+    };
+
+    it('is kept when it names a section of that item', async () => {
+      const { itemId, sectionId } = await parent();
+
+      const response = await raisedBeside({ originItemId: itemId, originSectionId: sectionId });
+
+      expect(response.status).toBe(201);
+      const raised = (await response.json()) as { originItemId: string; originSectionId: string };
+      expect(raised.originItemId).toBe(itemId);
+      expect(raised.originSectionId).toBe(sectionId);
     });
 
-    expect(written.status).toBeGreaterThanOrEqual(400);
+    it('is refused when the item does not exist', async () => {
+      const { sectionId } = await parent();
+
+      const response = await raisedBeside({
+        originItemId: '019ff5f5-a041-7cae-b500-fd404389867a',
+        originSectionId: sectionId,
+      });
+
+      expect(response.status).toBe(400);
+      expect(((await response.json()) as { error: string }).error).toContain('origin');
+      expect(await countItems()).toBe(1);
+    });
+
+    it('is refused when the section belongs to another item', async () => {
+      const first = await parent();
+      const second = await parent();
+
+      const response = await raisedBeside({
+        originItemId: first.itemId,
+        originSectionId: second.sectionId,
+      });
+
+      expect(response.status).toBe(400);
+      expect(((await response.json()) as { error: string }).error).toContain('origin');
+      expect(await countItems()).toBe(2);
+    });
+
+    it('is refused when only the item is named', async () => {
+      const { itemId } = await parent();
+
+      const response = await raisedBeside({ originItemId: itemId });
+
+      expect(response.status).toBe(400);
+      expect(((await response.json()) as { error: string }).error).toContain('origin');
+    });
+
+    it('is refused when only the section is named', async () => {
+      const { sectionId } = await parent();
+
+      const response = await raisedBeside({ originSectionId: sectionId });
+
+      expect(response.status).toBe(400);
+      expect(((await response.json()) as { error: string }).error).toContain('origin');
+    });
   });
 
   it('says so when there is no such item', async () => {
