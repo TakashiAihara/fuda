@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { assertDisposable } from './disposable.ts';
 import { createDatabase, type Database } from './client.ts';
 import { runMigrations } from './migrate.ts';
+import { createItemRepository } from '../repository/items.ts';
 
 // Real PostgreSQL, driven the way the server drives it.
 //
@@ -47,6 +48,28 @@ describe.skipIf(!url)('migrations', () => {
     // Counted rather than hardcoded: the number of migrations grows.
     expect(after?.['count']).toBe(before?.['count']);
     expect(before?.['count']).toBeGreaterThan(0);
+  });
+
+  it('refuses a second section at a position its item already holds', async () => {
+    await runMigrations(database);
+    const written = await createItemRepository(database).write({
+      summary: 'two reports',
+      sender: 'session:test',
+      attribution: {},
+      originItemId: null,
+      originSectionId: null,
+      sections: [
+        { kind: 'report', replyForm: null, recipient: null, body: { text: 'first' } },
+        { kind: 'report', replyForm: null, recipient: null, body: { text: 'second' } },
+      ],
+    });
+
+    expect(written.sections.map((section) => section.position)).toEqual([0, 1]);
+
+    await expect(
+      database.sql`insert into sections (item_id, position, kind, body)
+        values (${written.id}, 1, 'report', '{"text":"third"}'::jsonb)`,
+    ).rejects.toThrow('sections_item_id_position_key');
   });
 
   it('leaves the database answering afterwards', async () => {

@@ -15,6 +15,13 @@
       "when": 1786540634511,
       "tag": "0001_items_and_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793496793851,
+      "tag": "0002_section_position_unique",
+      "breakpoints": true
     }
   ]
 }

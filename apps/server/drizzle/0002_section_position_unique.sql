@@ -1,0 +1,1 @@
+ALTER TABLE "sections" ADD CONSTRAINT "sections_item_id_position_key" UNIQUE("item_id","position");
