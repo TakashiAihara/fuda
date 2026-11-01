@@ -41,7 +41,7 @@ export class OriginRefused extends Error {
   }
 }
 
-const ORIGIN_CONSTRAINTS: readonly string[] = ['items_origin_fk', 'items_origin_pair_check'];
+const ORIGIN_CONSTRAINTS = new Set(['items_origin_fk', 'items_origin_pair_check']);
 
 // The driver wraps the PostgreSQL error as `cause`, so the constraint name is read from there.
 function refusesOrigin(error: unknown): boolean {
@@ -52,7 +52,7 @@ function refusesOrigin(error: unknown): boolean {
     cause !== null &&
     'constraint_name' in cause &&
     typeof cause.constraint_name === 'string' &&
-    ORIGIN_CONSTRAINTS.includes(cause.constraint_name)
+    ORIGIN_CONSTRAINTS.has(cause.constraint_name)
   );
 }
 
@@ -203,7 +203,9 @@ export function createItemRepository(database: Database) {
           desc(itemList.createdAt),
           // A unique last key, so an offset cannot land between two rows that
           // tie on everything above and show one twice and the other never.
-          asc(itemList.id),
+          // Descending, because the ids are time-ordered and the key above is
+          // newest first; ascending would turn the order around inside a tie.
+          desc(itemList.id),
         )
         .limit(query.limit ?? 100)
         .offset(query.offset ?? 0);

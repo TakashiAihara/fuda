@@ -436,6 +436,36 @@ describe.skipIf(!url)('items over HTTP', () => {
     expect(secondItems.items.map((i) => i.summary)).toEqual(['asked third']);
   });
 
+  it('pages items that share a timestamp one at a time without skipping or repeating', async () => {
+    for (const summary of ['one', 'two', 'three', 'four']) {
+      await write({
+        summary,
+        sender: 'a',
+        sections: [{ kind: 'request', replyForm: 'pickup', body: { text: summary } }],
+      });
+    }
+
+    await database.sql`update items set created_at = '2026-01-01T00:00:00Z'`;
+
+    const paged: string[] = [];
+    for (const offset of [0, 1, 2, 3]) {
+      const page = await app.request(`/api/items?limit=1&offset=${offset}`);
+      const { items } = (await page.json()) as { items: { id: string }[] };
+
+      expect(items).toHaveLength(1);
+      paged.push(items[0]?.id as string);
+    }
+
+    const whole = await app.request('/api/items');
+    const all = ((await whole.json()) as { items: { id: string }[] }).items.map((i) => i.id);
+
+    expect(new Set(paged).size).toBe(4);
+    expect(paged).toEqual(all);
+    // Newer first, as the creation time orders everything else; the id stands
+    // in for the creation time among items that have the same one.
+    expect(all).toEqual(all.toSorted().toReversed());
+  });
+
   it('refuses an offset that is not a place in the list', async () => {
     const beforeTheStart = await app.request('/api/items?offset=-1');
     const notAPlace = await app.request('/api/items?offset=1.5');
