@@ -78,6 +78,7 @@ bun run lint
 bun run test           # unit tests
 bun run test:integration
 bun run test:e2e       # drives the screen in a browser
+bun run check          # typecheck, lint, fmt:check, test, test:integration, build:web; stops at the first failure and fails without FUDA_TEST_DATABASE_URL
 ```
 
 ## Interfaces
