@@ -68,6 +68,9 @@ export const sections = pgTable(
     index('sections_recipient_idx').on(table.recipient),
     // What the composite foreign key from items.origin_* points at.
     unique('sections_item_id_id_key').on(table.itemId, table.id),
+    // Without it two sections of one item can share a place, and the order the
+    // item is read back in is then undefined.
+    unique('sections_item_id_position_key').on(table.itemId, table.position),
     // Checked text, not an enum. The reply forms are meant to grow, and adding
     // to a check constraint is a migration where altering an enum in use is a
     // fight.
