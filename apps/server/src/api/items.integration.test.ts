@@ -19,6 +19,24 @@ const question = (recipient: string) => ({
   body: { text: 'ok?' },
 });
 
+const pickup = (recipient: string) => ({
+  kind: 'request',
+  replyForm: 'pickup',
+  recipient,
+  body: { text: 'take this' },
+});
+
+type ListedRow = {
+  summary: string;
+  unansweredCount: number;
+  deferredCount: number;
+  openRequestCount: number;
+  oldestUnansweredAt: string | null;
+};
+
+const counts = (rows: ListedRow[]) =>
+  rows.map((i) => [i.summary, i.unansweredCount, i.deferredCount, i.openRequestCount]);
+
 /**
  * Driven through the real HTTP entry point against real PostgreSQL, because
  * that is what both the agent and the browser will be holding. Nothing is
@@ -362,11 +380,19 @@ describe.skipIf(!url)('items over HTTP', () => {
   });
 
   it('counts and orders the person’s list by their own sections, and the whole list by all of them', async () => {
-    const ageSection = async (itemId: string, recipient: string, days: number) => {
+    // By position, so one item can hold sections of different ages.
+    const age = async (itemId: string, position: number, hours: number) => {
       await database.sql`
         update sections
-        set unanswered_since = now() - make_interval(days => ${days})
-        where item_id = ${itemId} and recipient = ${recipient}
+        set unanswered_since = now() - make_interval(hours => ${hours})
+        where item_id = ${itemId} and position = ${position}
+      `;
+    };
+
+    const defer = async (itemId: string, position: number) => {
+      await database.sql`
+        update sections set state = 'deferred'
+        where item_id = ${itemId} and position = ${position}
       `;
     };
 
@@ -375,41 +401,58 @@ describe.skipIf(!url)('items over HTTP', () => {
       return ((await written.json()) as { id: string }).id;
     };
 
-    const pickup = { kind: 'request', replyForm: 'pickup', recipient: 'person', body: { text: 'take this' } };
+    const onlyWorkerWaits = await writeItem('only the worker waits', [
+      pickup('person'),
+      question('session:worker'),
+    ]);
+    await age(onlyWorkerWaits, 1, 5 * 24);
 
-    const onlyWorkerWaits = await writeItem('only the worker waits', [pickup, question('session:worker')]);
-    await ageSection(onlyWorkerWaits, 'session:worker', 5);
-
-    await writeItem('the person waits since now', [question('person')]);
+    const sinceAnHour = await writeItem('the person waits an hour', [question('person')]);
+    await age(sinceAnHour, 0, 1);
 
     const personWaitsTwoDays = await writeItem('the person waits two days', [question('person')]);
-    await ageSection(personWaitsTwoDays, 'person', 2);
+    await age(personWaitsTwoDays, 0, 2 * 24);
+
+    // Two of the person's own, three days and now: the older one places it.
+    const twice = await writeItem('the person waits twice', [question('person'), question('person')]);
+    await age(twice, 0, 3 * 24);
 
     const bothWait = await writeItem('both wait, the worker for nine days', [
       question('person'),
       question('session:worker'),
+      pickup('session:worker'),
+      question('session:worker'),
     ]);
-    await ageSection(bothWait, 'session:worker', 9);
+    await age(bothWait, 1, 9 * 24);
+    await defer(bothWait, 3);
 
-    type Row = { summary: string; unansweredCount: number };
     const listed = async (query: string) =>
-      ((await (await app.request(`/api/items?${query}`)).json()) as { items: Row[] }).items.map((i) => [
-        i.summary,
-        i.unansweredCount,
-      ]);
+      ((await (await app.request(`/api/items?${query}`)).json()) as { items: ListedRow[] }).items;
 
-    expect(await listed('recipient=person&recipient=')).toEqual([
-      ['the person waits two days', 1],
-      ['the person waits since now', 1],
-      ['both wait, the worker for nine days', 1],
-      ['only the worker waits', 0],
+    const mine = await listed('recipient=person&recipient=');
+
+    expect(counts(mine)).toEqual([
+      ['the person waits twice', 2, 0, 0],
+      ['the person waits two days', 1, 0, 0],
+      ['the person waits an hour', 1, 0, 0],
+      ['both wait, the worker for nine days', 1, 0, 0],
+      ['only the worker waits', 0, 0, 1],
+    ]);
+    // Same JSON shape as the unfiltered list: an ISO timestamp, or null.
+    expect(mine.map((i) => i.oldestUnansweredAt?.replace(/\d/g, '0') ?? null)).toEqual([
+      '0000-00-00T00:00:00.000Z',
+      '0000-00-00T00:00:00.000Z',
+      '0000-00-00T00:00:00.000Z',
+      '0000-00-00T00:00:00.000Z',
+      null,
     ]);
 
-    expect(await listed('')).toEqual([
-      ['both wait, the worker for nine days', 2],
-      ['only the worker waits', 1],
-      ['the person waits two days', 1],
-      ['the person waits since now', 1],
+    expect(counts(await listed(''))).toEqual([
+      ['both wait, the worker for nine days', 2, 1, 1],
+      ['only the worker waits', 1, 0, 1],
+      ['the person waits twice', 2, 0, 0],
+      ['the person waits two days', 1, 0, 0],
+      ['the person waits an hour', 1, 0, 0],
     ]);
   });
 

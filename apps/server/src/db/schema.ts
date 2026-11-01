@@ -146,7 +146,8 @@ export const items = pgTable(
 );
 
 /**
- * The list reads this rather than the tables.
+ * The list reads this rather than the tables, except that a list filtered by
+ * recipient counts that recipient's sections itself.
  *
  * An item's state is derived, never stored, so the two can never disagree. The
  * ordering key is the oldest unanswered section, which is an aggregate — hence

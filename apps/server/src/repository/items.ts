@@ -142,6 +142,8 @@ export function createItemRepository(database: Database) {
       let unansweredCount: SQL<number> | typeof itemList.unansweredCount = itemList.unansweredCount;
       let oldestUnansweredAt: SQL<Date | null> | typeof itemList.oldestUnansweredAt =
         itemList.oldestUnansweredAt;
+      let deferredCount: SQL<number> | typeof itemList.deferredCount = itemList.deferredCount;
+      let openRequestCount: SQL<number> | typeof itemList.openRequestCount = itemList.openRequestCount;
 
       if (query.closed === true) conditions.push(isNotNull(itemList.closedAt));
       if (query.closed !== true) conditions.push(isNull(itemList.closedAt));
@@ -188,16 +190,20 @@ export function createItemRepository(database: Database) {
               : ['unanswered', 'deferred', 'not_started', 'in_progress'];
 
         // Asked of the sections the filter matched, so what waits on somebody
-        // else in the same item neither counts nor places it. Without a
-        // filter the view's totals stand.
-        const mine = sql`select ${sections.unansweredSince} from ${sections}
-          where ${sections.itemId} = ${itemList.id}
-            and ${sections.state} = 'unanswered'
-            and (${sql.join(alternatives, sql` or `)})`;
-        unansweredCount = sql<number>`(select count(*)::int from (${mine}) m)`;
-        oldestUnansweredAt = sql<Date | null>`(select min(m.unanswered_since) from (${mine}) m)`.mapWith(
-          itemList.oldestUnansweredAt,
-        );
+        // else in the same item neither counts, nor places it, nor shows as
+        // theirs to take. Without a filter the view's totals stand.
+        const ofMine = (aggregate: SQL) =>
+          sql`(select ${aggregate} from ${sections}
+            where ${sections.itemId} = ${itemList.id}
+              and (${sql.join(alternatives, sql` or `)}))`;
+        unansweredCount = sql<number>`${ofMine(sql`count(*) filter (where ${sections.state} = 'unanswered')::int`)}`;
+        oldestUnansweredAt = sql<Date | null>`${ofMine(
+          sql`min(${sections.unansweredSince}) filter (where ${sections.state} = 'unanswered')`,
+        )}`.mapWith(itemList.oldestUnansweredAt);
+        deferredCount = sql<number>`${ofMine(sql`count(*) filter (where ${sections.state} = 'deferred')::int`)}`;
+        openRequestCount = sql<number>`${ofMine(
+          sql`count(*) filter (where ${sections.state} in ('not_started', 'in_progress'))::int`,
+        )}`;
 
         conditions.push(
           sql`exists (
@@ -220,8 +226,8 @@ export function createItemRepository(database: Database) {
           closedAt: itemList.closedAt,
           oldestUnansweredAt,
           unansweredCount,
-          deferredCount: itemList.deferredCount,
-          openRequestCount: itemList.openRequestCount,
+          deferredCount,
+          openRequestCount,
           sectionCount: itemList.sectionCount,
         })
         .from(itemList)
