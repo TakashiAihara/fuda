@@ -1,4 +1,4 @@
-import { parseArgs } from 'node:util';
+import { type ParseArgsOptionsConfig, parseArgs } from 'node:util';
 import { createClient, ServerError } from './client.ts';
 import { ConfigError, loadConfig } from './config.ts';
 import { formatItem, formatList } from './format.ts';
@@ -19,6 +19,9 @@ list:
   --json
 
 show:
+  --json
+
+write:
   --json
 
 Configuration:
@@ -51,6 +54,46 @@ function parseAttribution(values: string[]): [string, string][] {
   });
 }
 
+const json: ParseArgsOptionsConfig = { json: { type: 'boolean', default: false } };
+
+const optionsFor: Record<string, ParseArgsOptionsConfig> = {
+  write: json,
+  show: json,
+  list: {
+    ...json,
+    closed: { type: 'boolean', default: false },
+    state: { type: 'string' },
+    attribution: { type: 'string', multiple: true, default: [] },
+    recipient: { type: 'string', multiple: true, default: [] },
+    limit: { type: 'string' },
+  },
+};
+
+type Flags = {
+  json?: boolean;
+  closed?: boolean;
+  state?: string;
+  attribution?: string[];
+  recipient?: string[];
+  limit?: string;
+};
+
+export function parseCommand(command: string, args: string[]) {
+  if (!Object.hasOwn(optionsFor, command)) throw new Error(`no such command: ${command}. Try fuda help`);
+
+  // Each subcommand gets only its own option table, so a flag meant for another
+  // subcommand is unknown here and parseArgs refuses it. strict is its default;
+  // it is spelled out because the refusal depends on it.
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    strict: true,
+    options: optionsFor[command],
+  });
+
+  return { values: values as Flags, positionals };
+}
+
 export async function run(argv: string[], report: Reporter): Promise<number> {
   const [command, ...rest] = argv;
 
@@ -59,18 +102,7 @@ export async function run(argv: string[], report: Reporter): Promise<number> {
     return command === undefined ? 1 : 0;
   }
 
-  const { values, positionals } = parseArgs({
-    args: rest,
-    allowPositionals: true,
-    options: {
-      json: { type: 'boolean', default: false },
-      closed: { type: 'boolean', default: false },
-      state: { type: 'string' },
-      attribution: { type: 'string', multiple: true, default: [] },
-      recipient: { type: 'string', multiple: true, default: [] },
-      limit: { type: 'string' },
-    },
-  });
+  const { values, positionals } = parseCommand(command, rest);
 
   const config = loadConfig(process.env);
   const client = createClient(config);
@@ -95,8 +127,8 @@ export async function run(argv: string[], report: Reporter): Promise<number> {
     const items = await client.list({
       ...(values.state === undefined ? {} : { state: values.state as 'unanswered' | 'open' | 'all' }),
       ...(values.closed ? { closed: true } : {}),
-      attribution: parseAttribution(values.attribution),
-      recipients: values.recipient.map((value) => (value === '' ? null : value)),
+      attribution: parseAttribution(values.attribution ?? []),
+      recipients: (values.recipient ?? []).map((value) => (value === '' ? null : value)),
       ...(values.limit === undefined ? {} : { limit: Number(values.limit) }),
     });
 
