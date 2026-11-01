@@ -1,22 +1,15 @@
-/** Longer than a summary the list can scan is cut, not refused: the full text is the body. */
+import type { ItemInput } from '@fuda/core';
+import { Refused } from './api.ts';
+
+/**
+ * Longer than a summary the list can scan is cut, not refused: the full text is
+ * the body. A provisional product decision; the server accepts more.
+ */
 const SUMMARY_LIMIT = 120;
 
 export type RaiseOrigin = { id: string; sender: string; attribution: Record<string, string> };
 
-export type RaisedItem = {
-  summary: string;
-  originItemId: string;
-  originSectionId: string;
-  attribution: Record<string, string>;
-  sections: [
-    {
-      kind: 'request';
-      replyForm: 'pickup';
-      recipient: string | null;
-      body: { text: string };
-    },
-  ];
-};
+export type RaisedItem = Omit<ItemInput, 'sender'>;
 
 /**
  * The item for a thought raised beside a section, or nothing for blank text.
@@ -32,15 +25,16 @@ export function raisedItem(
   person: string,
 ): RaisedItem | null {
   const body = text.trim();
-  const first = body.split('\n').find((line) => line.trim() !== '');
 
-  if (first === undefined) return null;
+  if (body === '') return null;
+
+  const first = body.split('\n')[0] ?? '';
 
   return {
-    summary: first.trim().slice(0, SUMMARY_LIMIT),
+    summary: Array.from(first.trim()).slice(0, SUMMARY_LIMIT).join(''),
     originItemId: origin.id,
     originSectionId: sectionId,
-    attribution: { ...origin.attribution },
+    attribution: origin.attribution,
     sections: [
       {
         kind: 'request',
@@ -50,4 +44,11 @@ export function raisedItem(
       },
     ],
   };
+}
+
+/** A refusal says why; anything else says nothing about whether the item was written. */
+export function raiseComplaint(error: unknown): string {
+  if (error instanceof Refused && error.status < 500) return error.message;
+
+  return 'the item may not have been raised — check the list before raising it again';
 }

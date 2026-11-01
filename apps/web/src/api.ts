@@ -146,8 +146,8 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
 }
 
 /** The sender is left out; the server stamps the person. */
-export function raiseItem(item: RaisedItem): Promise<unknown> {
-  return asked('/api/items', {
+export function raiseItem(item: RaisedItem): Promise<{ id: string }> {
+  return asked<{ id: string }>('/api/items', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(item),

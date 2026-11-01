@@ -8,7 +8,7 @@ import type { Section as Row } from './api.ts';
 import { complaint, raiseItem, sendReply, setPostponed } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
-import { raisedItem, type RaiseOrigin } from './raise.ts';
+import { raiseComplaint, raisedItem, type RaiseOrigin } from './raise.ts';
 
 /**
  * One section: what it says, and whatever can be done with it from here.
@@ -65,14 +65,23 @@ export function Section({
       )}
 
       {section.replyForm === 'choice' ? (
-        <Choice section={section} person={person} origin={origin} />
+        <Choice section={section} person={person} />
       ) : section.replyForm === 'free_text' ||
         section.replyForm === 'approval' ||
         section.replyForm === 'external_tool' ? (
-        <Form section={section} person={person} origin={origin} />
+        <Form section={section} person={person} />
       ) : (
         <ReadOnly section={section} />
       )}
+
+      {/* Here rather than inside a reply form: those swap out as the section's
+          state changes, and the typed text must outlive that. */}
+      {person !== null &&
+      section.replyForm !== null &&
+      section.replyForm !== 'pickup' &&
+      answerableBy(section.recipient, person) ? (
+        <Raise section={section} person={person} origin={origin} />
+      ) : null}
     </div>
   );
 }
@@ -138,7 +147,7 @@ function Later({ section }: { section: Row }) {
   );
 }
 
-function Choice({ section, person, origin }: { section: Row; person: string | null; origin: RaiseOrigin }) {
+function Choice({ section, person }: { section: Row; person: string | null }) {
   const options = section.body.options ?? [];
   const [note, setNote] = useState('');
   const answer = useAction(
@@ -250,7 +259,6 @@ function Choice({ section, person, origin }: { section: Row; person: string | nu
         </div>
       </div>
 
-      <Raise section={section} person={person} origin={origin} />
       <Complaint said={answer.said} />
     </div>
   );
@@ -262,24 +270,25 @@ function Choice({ section, person, origin }: { section: Row; person: string | nu
  * It is not an answer: the section stays as it was, and the new item records
  * where it was raised.
  */
-function Raise({ section, person, origin }: { section: Row; person: string | null; origin: RaiseOrigin }) {
+function Raise({ section, person, origin }: { section: Row; person: string; origin: RaiseOrigin }) {
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
-  const [raised, setRaised] = useState<string | null>(null);
+  const [raised, setRaised] = useState<{ id: string; summary: string } | null>(null);
   const [said, setSaid] = useState<string | null>(null);
-  const item = person === null ? null : raisedItem(text, origin, section.id, person);
+  const item = raisedItem(text, origin, section.id, person);
 
   const raise = useMutation({
-    mutationFn: (body: NonNullable<typeof item>) => raiseItem(body).then(() => body.summary),
-    onSuccess: (summary) => {
+    mutationFn: (body: NonNullable<typeof item>) =>
+      raiseItem(body).then(({ id }) => ({ id, summary: body.summary })),
+    onSuccess: (made) => {
       setOpen(false);
       setText('');
       setSaid(null);
-      setRaised(summary);
+      setRaised(made);
       void client.invalidateQueries();
     },
-    onError: (error: unknown) => setSaid(complaint(error)),
+    onError: (error: unknown) => setSaid(raiseComplaint(error)),
   });
 
   return (
@@ -301,7 +310,15 @@ function Raise({ section, person, origin }: { section: Row; person: string | nul
             >
               raise
             </button>
-            <button className="btn ghost" disabled={raise.isPending} onClick={() => setOpen(false)}>
+            <button
+              className="btn ghost"
+              disabled={raise.isPending}
+              onClick={() => {
+                setOpen(false);
+                setText('');
+                setSaid(null);
+              }}
+            >
               cancel
             </button>
           </div>
@@ -319,14 +336,18 @@ function Raise({ section, person, origin }: { section: Row; person: string | nul
           </button>
         </div>
       )}
-      {raised === null ? null : <p className="reply-hint">raised: {raised}</p>}
+      {raised === null ? null : (
+        <p className="reply-hint">
+          <a href={`?item=${encodeURIComponent(raised.id)}`}>raised: {raised.summary}</a>
+        </p>
+      )}
       <Complaint said={said} />
     </>
   );
 }
 
 /** Free text, approval and external tool: each settled by one control, plus postponing. */
-function Form({ section, person, origin }: { section: Row; person: string | null; origin: RaiseOrigin }) {
+function Form({ section, person }: { section: Row; person: string | null }) {
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const answer = useAction(
@@ -446,7 +467,6 @@ function Form({ section, person, origin }: { section: Row; person: string | null
         </div>
       ) : null}
 
-      <Raise section={section} person={person} origin={origin} />
       <Complaint said={answer.said} />
     </div>
   );

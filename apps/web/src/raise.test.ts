@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { raisedItem } from './raise.ts';
+import { Refused } from './api.ts';
+import { raiseComplaint, raisedItem } from './raise.ts';
 
 const origin = {
   id: 'item-1',
@@ -48,12 +49,35 @@ describe('what raising a separate item sends', () => {
     expect(item?.originItemId).toBe('item-1');
     expect(item?.originSectionId).toBe('section-1');
     expect(item?.attribution).toEqual({ repository: 'fuda', branch: 'main' });
-    expect(item?.attribution).not.toBe(origin.attribution);
+  });
+
+  it('cuts the summary by whole characters, not UTF-16 units', () => {
+    const summary = raisedItem(`${'a'.repeat(119)}\u{1F600}zzz`, origin, section, person)?.summary;
+
+    expect(summary).toBe('a'.repeat(119) + '\u{1F600}');
+    expect(summary).not.toContain('�');
+  });
+
+  it('takes the first line of the trimmed text, so a blank lead is not the summary', () => {
+    expect(raisedItem('\n\n  second line first\nnext', origin, section, person)?.summary).toBe(
+      'second line first',
+    );
   });
 
   it('sends nothing for blank text', () => {
     expect(raisedItem('', origin, section, person)).toBeNull();
     expect(raisedItem(' \n\t \n', origin, section, person)).toBeNull();
+  });
+
+  it('says a refusal as the server did', () => {
+    expect(raiseComplaint(new Refused(400, 'the item is not writable'))).toBe('the item is not writable');
+  });
+
+  it('says it may not have been raised when the outcome is unknown', () => {
+    const unknown = 'the item may not have been raised — check the list before raising it again';
+
+    expect(raiseComplaint(new Refused(503, 'down'))).toBe(unknown);
+    expect(raiseComplaint(new TypeError('network'))).toBe(unknown);
   });
 
   it('leaves the sender out', () => {

@@ -114,6 +114,10 @@ test('a thought raised beside a free text reply becomes its own item and answers
 
   const raised = await readItem(request, items.find((item) => item.id !== first.id)!.id);
 
+  await expect(detail.getByRole('link', { name: 'raised: check the backup job' })).toHaveAttribute(
+    'href',
+    new RegExp(`\\?item=${raised.id}$`),
+  );
   expect(raised.summary).toBe('check the backup job');
   expect(raised.sender).toBe(PERSON);
   expect(raised.attribution).toEqual({ repository: 'fuda', branch: 'main' });
@@ -142,6 +146,51 @@ test('cancel closes the field without sending anything', async ({ page, request 
 
   await expect(detail.getByLabel('separate item')).toHaveCount(0);
   expect(await listAll(request)).toHaveLength(1);
+
+  await detail.getByRole('button', { name: 'raise a separate item' }).click();
+  await expect(detail.getByLabel('separate item')).toHaveValue('');
+});
+
+test('cancel also forgets an earlier refusal', async ({ page, request }) => {
+  const first = await writeItem(request, origin('approval'));
+  const detail = await open(page, first.summary);
+
+  await page.route('**/api/items', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'the item is not writable' }),
+        })
+      : route.fallback(),
+  );
+
+  await detail.getByRole('button', { name: 'raise a separate item' }).click();
+  await detail.getByLabel('separate item').fill('x');
+  await detail.getByRole('button', { name: 'raise', exact: true }).click();
+  await expect(detail.getByText('the item is not writable', { exact: true })).toBeVisible();
+
+  await detail.getByRole('button', { name: 'cancel' }).click();
+
+  await expect(detail.getByText('the item is not writable', { exact: true })).toHaveCount(0);
+});
+
+test('answering the section does not take the typed thought away', async ({ page, request }) => {
+  const first = await writeItem(request, origin('free_text'));
+  const detail = await open(page, first.summary);
+
+  await detail.getByRole('button', { name: 'raise a separate item' }).click();
+  await detail.getByLabel('separate item').fill('remember the cron');
+  await detail.getByLabel('your answer').fill('later');
+  await detail.getByRole('button', { name: 'send', exact: true }).click();
+
+  await expect(detail.getByText('answered by', { exact: false }).first()).toBeVisible();
+  await expect(detail.getByLabel('separate item')).toHaveValue('remember the cron');
+
+  await detail.getByRole('button', { name: 'raise', exact: true }).click();
+
+  await expect(detail.getByRole('link', { name: 'raised: remember the cron' })).toBeVisible();
+  expect(await listAll(request)).toHaveLength(2);
 });
 
 test('a refusal is shown and the text is kept', async ({ page, request }) => {
