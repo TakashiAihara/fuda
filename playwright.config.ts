@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 import { PERSON_IDENTITY, resolveTestDatabaseUrl } from './e2e/database.ts';
+import { resolveE2ePort } from './e2e/port.ts';
 
-const PORT = Number(process.env['FUDA_E2E_PORT'] ?? 18787);
+const PORT = resolveE2ePort(process.env);
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
