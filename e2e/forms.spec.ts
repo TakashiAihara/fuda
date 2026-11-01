@@ -107,6 +107,7 @@ test('approval is declined in one click with a note', async ({ page, request }) 
   await detail.getByRole('button', { name: 'decline' }).click();
 
   await expect(detail.getByText(`answered by ${PERSON}`, { exact: true })).toBeVisible();
+  await expect(detail.getByText(`decline — ${note}`, { exact: true })).toBeVisible();
 
   const stored = onlySection(await readItem(request, item.id));
 
@@ -121,8 +122,9 @@ test('approval is given in one click without a note', async ({ page, request }) 
   await detail.getByRole('button', { name: 'proceed' }).click();
 
   await expect(detail.getByText(`answered by ${PERSON}`, { exact: true })).toBeVisible();
+  await expect(detail.getByText('proceed', { exact: true })).toBeVisible();
 
-  // No note key at all: an empty note sent along would read as something said.
+  // No note key at all: the server refuses an empty note, so sending one would fail the click.
   expect(onlySection(await readItem(request, item.id)).reply).toEqual({ decision: 'proceed' });
 });
 
@@ -138,6 +140,8 @@ test('an external tool section links out and is settled in one click on return',
   await detail.getByRole('button', { name: 'done' }).click();
 
   await expect(detail.getByText(`answered by ${PERSON}`, { exact: true })).toBeVisible();
+  // Settled, the place the work was done is still one click away.
+  await expect(detail.getByRole('link', { name: 'open elsewhere ↗' })).toHaveAttribute('href', link);
 
   const stored = onlySection(await readItem(request, item.id));
 
@@ -187,16 +191,52 @@ test('a section body is rendered as markdown without raw HTML', async ({ page, r
       {
         kind: 'report',
         body: {
-          text: '## Moved the reader\n\n- **first** point\n\n<img src=x onerror="globalThis.pwned=1">',
+          text:
+            '## Moved the reader\n\n- **first** point\n\nline one\nline two\n\n' +
+            '<img src=x onerror="globalThis.pwned=1">\n\n![chart](http://127.0.0.2:9/chart.png)',
         },
       },
       { kind: 'question', replyForm: 'free_text', recipient: PERSON, body: { text: 'anything to add?' } },
     ],
   });
+  const fetched: string[] = [];
+
+  page.on('request', (sent) => {
+    if (sent.url().includes('127.0.0.2')) fetched.push(sent.url());
+  });
+
   const detail = await open(page, item.summary);
 
   await expect(detail.getByRole('heading', { name: 'Moved the reader' })).toBeVisible();
+  // A single newline stays a line break: plain lines from an agent are not run together.
+  await expect(detail.locator('p', { hasText: 'line one' }).locator('br')).toHaveCount(1);
+  // Raw HTML is shown as the text that was written, not dropped and not run.
+  await expect(detail.getByText('<img src=x onerror="globalThis.pwned=1">')).toBeVisible();
   await expect(detail.locator('strong', { hasText: 'first' })).toBeVisible();
   await expect(detail.locator('img')).toHaveCount(0);
   expect(await page.evaluate(() => (globalThis as { pwned?: number }).pwned)).toBeUndefined();
+  // Opening the item must not make the browser fetch an address an agent wrote.
+  expect(fetched).toEqual([]);
+});
+
+test('a section addressed to someone else offers no controls, even reached by its link', async ({
+  page,
+  request,
+}) => {
+  const item = await writeItem(request, {
+    summary: 'this one waits on the session',
+    sender: SESSION,
+    sections: [
+      { kind: 'question', replyForm: 'free_text', recipient: SESSION, body: { text: 'which file?' } },
+    ],
+  });
+  const { detail } = regions(page);
+
+  // Not on the person's list, so it is opened the way a shared link opens it.
+  await page.goto(`/?item=${item.id}`);
+
+  await expect(detail.getByRole('heading', { name: item.summary })).toBeVisible();
+  await expect(detail.getByText(`Waiting on ${SESSION}. Nothing is owed by you.`)).toBeVisible();
+  await expect(detail.getByLabel('your answer')).toHaveCount(0);
+  await expect(detail.getByRole('button', { name: 'later' })).toHaveCount(0);
 });

@@ -2,6 +2,7 @@ import type { ApprovalReply, ChoiceReply, Reply } from '@fuda/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import type { Section as Row } from './api.ts';
 import { complaint, sendReply, setPostponed } from './api.ts';
@@ -25,11 +26,15 @@ export function Section({ section, person }: { section: Row; person: string | nu
         <span className="to">→ {section.recipient ?? 'anyone'}</span>
       </div>
 
-      {/* No rehype-raw: without it, HTML written into a body is shown as text
-          rather than put on the page. Bodies come from agents. */}
+      {/* Bodies come from agents. No rehype-raw, so HTML stays text, and no
+          images, which the browser would fetch the moment the item is opened —
+          from any address the agent wrote, LAN included. A single newline is a
+          line break, because agents write plain lines as often as markdown. */}
       <div className="body">
         <Markdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkBreaks]}
+          disallowedElements={['img']}
+          unwrapDisallowed
           components={{
             a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
           }}
@@ -37,6 +42,17 @@ export function Section({ section, person }: { section: Row; person: string | nu
           {section.body.text}
         </Markdown>
       </div>
+
+      {/* Under the body rather than inside the answer controls: the place the
+          work was done stays reachable after it is settled, postponed, or while
+          it waits on someone else. The scheme is limited to http(s) when written. */}
+      {section.body.link === undefined ? null : (
+        <div className="reply-actions">
+          <a className="link-out" href={section.body.link} target="_blank" rel="noreferrer">
+            open elsewhere ↗
+          </a>
+        </div>
+      )}
 
       {section.replyForm === 'choice' ? (
         <Choice section={section} person={person} />
@@ -343,11 +359,6 @@ function Form({ section, person }: { section: Row; person: string | null }) {
 
       {section.replyForm === 'external_tool' ? (
         <div className="reply-actions">
-          {section.body.link === undefined ? null : (
-            <a className="link-out" href={section.body.link} target="_blank" rel="noreferrer">
-              open elsewhere ↗
-            </a>
-          )}
           <button className="btn primary" disabled={answer.pending} onClick={() => answer.send({})}>
             done
           </button>
@@ -369,13 +380,6 @@ function ReadOnly({ section }: { section: Row }) {
   return (
     <div className="reply">
       <p className="reply-hint">{hint(section)}</p>
-      {section.body.link === undefined ? null : (
-        <div className="reply-actions">
-          <a className="link-out" href={section.body.link} target="_blank" rel="noreferrer">
-            open elsewhere ↗
-          </a>
-        </div>
-      )}
       {said === null ? null : <p className="answered-note">{said}</p>}
     </div>
   );

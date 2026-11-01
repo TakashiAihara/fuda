@@ -1,20 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
 
-const none = { answer: false, later: false, resume: false };
+const none = { answer: false, resume: false };
 
 describe('which controls a section gets', () => {
   it('offers answering and postponing to an unanswered section the person can answer', () => {
-    expect(controlsFor('free_text', 'unanswered', true)).toEqual({
-      answer: true,
-      later: true,
-      resume: false,
-    });
-    expect(controlsFor('choice', 'unanswered', true)).toEqual({ answer: true, later: true, resume: false });
+    expect(controlsFor('free_text', 'unanswered', true)).toEqual({ answer: true, resume: false });
+    expect(controlsFor('choice', 'unanswered', true)).toEqual({ answer: true, resume: false });
   });
 
   it('offers only resuming to a deferred one', () => {
-    expect(controlsFor('approval', 'deferred', true)).toEqual({ answer: false, later: false, resume: true });
+    expect(controlsFor('approval', 'deferred', true)).toEqual({ answer: false, resume: true });
   });
 
   it('offers nothing once answered', () => {
