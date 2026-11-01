@@ -126,14 +126,31 @@ function Complaint({ said }: { said: string | null }) {
   return said === null ? null : <p className="complaint">{said}</p>;
 }
 
-function Waiting({ section, person }: { section: Row; person: string | null }) {
+/** What stands in for the answer controls when this person cannot answer here. */
+function Waiting({
+  section,
+  person,
+  closed,
+  said,
+}: {
+  section: Row;
+  person: string | null;
+  closed: boolean;
+  said: (string | null)[];
+}) {
   return (
     <div className="reply">
       <p className="reply-hint">
         {person === null
           ? 'Finding out who you are before offering anything to answer.'
-          : `Waiting on ${section.recipient ?? 'anyone'}. Nothing is owed by you.`}
+          : closed
+            ? 'This item is closed, so nothing here can be answered any more.'
+            : `Waiting on ${section.recipient ?? 'anyone'}. Nothing is owed by you.`}
       </p>
+      {/* Kept here too: a click refused because the item closed under it lands on this branch. */}
+      {said.map((text, index) => (
+        <Complaint key={index} said={text} />
+      ))}
     </div>
   );
 }
@@ -219,7 +236,9 @@ function Choice({ section, person, closed }: { section: Row; person: string | nu
     );
   }
 
-  if (!controls.answer) return <Waiting section={section} person={person} />;
+  if (!controls.answer) {
+    return <Waiting section={section} person={person} closed={closed} said={[answer.said, postpone.said]} />;
+  }
 
   const send = (option: string | null) => {
     const reply = choiceAnswer(option, note);
@@ -448,7 +467,9 @@ function Form({ section, person, closed }: { section: Row; person: string | null
     );
   }
 
-  if (!controls.answer) return <Waiting section={section} person={person} />;
+  if (!controls.answer) {
+    return <Waiting section={section} person={person} closed={closed} said={[answer.said, postpone.said]} />;
+  }
 
   const sendText = () => {
     const reply = freeTextAnswer(text);

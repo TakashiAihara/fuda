@@ -192,6 +192,9 @@ test('a closed item offers no way to answer or postpone', async ({ page, request
 
   await expect(detail.getByLabel('your answer')).toHaveCount(0);
   await expect(detail.getByRole('button', { name: 'later' })).toHaveCount(0);
+  await expect(
+    detail.getByText('This item is closed, so nothing here can be answered any more.'),
+  ).toBeVisible();
   expect(onlySection(await readItem(request, item.id)).state).toBe('unanswered');
 });
 

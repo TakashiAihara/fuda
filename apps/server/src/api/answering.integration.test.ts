@@ -327,7 +327,7 @@ describe.skipIf(!url)('answering over HTTP', () => {
       const response = await post(`/api/sections/${id}/reply`, { reply: { text: 'too late' } });
 
       expect(response.status).toBe(409);
-      expect(((await response.json()) as { reason: string }).reason).toBe('not_now');
+      expect(await response.json()).toEqual({ error: 'this item is closed', reason: 'not_now' });
       expect(await stored(itemId)).toMatchObject({ state: 'unanswered', reply: null, answeredBy: null });
     });
 
@@ -337,7 +337,7 @@ describe.skipIf(!url)('answering over HTTP', () => {
       const response = await post(`/api/sections/${id}/defer`);
 
       expect(response.status).toBe(409);
-      expect(((await response.json()) as { reason: string }).reason).toBe('not_now');
+      expect(await response.json()).toEqual({ error: 'this item is closed', reason: 'not_now' });
       expect((await stored(itemId)).state).toBe('unanswered');
     });
 
@@ -347,7 +347,7 @@ describe.skipIf(!url)('answering over HTTP', () => {
       const response = await post(`/api/sections/${id}/resume`);
 
       expect(response.status).toBe(409);
-      expect(((await response.json()) as { reason: string }).reason).toBe('not_now');
+      expect(await response.json()).toEqual({ error: 'this item is closed', reason: 'not_now' });
       expect((await stored(itemId)).state).toBe('deferred');
     });
   });

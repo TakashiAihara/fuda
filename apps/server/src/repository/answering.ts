@@ -40,8 +40,9 @@ export function createAnsweringRepository(database: Database) {
     return row;
   };
 
-  // Part of the same WHERE as the state, so closing between the read and the
-  // write cannot let an answer through.
+  // Part of the same WHERE as the state, so a close committed before the
+  // update starts refuses it. An update already running when the close commits
+  // still lands, which leaves the same rows as answering first and closing after.
   const itemOpen = () =>
     exists(
       db
