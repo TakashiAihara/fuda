@@ -12,6 +12,13 @@ const url = process.env['FUDA_TEST_DATABASE_URL'];
 
 if (url !== undefined) assertDisposable(url, process.env['FUDA_DATABASE_URL']);
 
+const question = (recipient: string) => ({
+  kind: 'question',
+  replyForm: 'approval',
+  recipient,
+  body: { text: 'ok?' },
+});
+
 /**
  * Driven through the real HTTP entry point against real PostgreSQL, because
  * that is what both the agent and the browser will be holding. Nothing is
@@ -352,6 +359,58 @@ describe.skipIf(!url)('items over HTTP', () => {
 
     expect(await summaries('recipient=person&state=unanswered')).toEqual([]);
     expect(await summaries('recipient=person&state=open')).toEqual(['the person has to take this']);
+  });
+
+  it('counts and orders the person’s list by their own sections, and the whole list by all of them', async () => {
+    const ageSection = async (itemId: string, recipient: string, days: number) => {
+      await database.sql`
+        update sections
+        set unanswered_since = now() - make_interval(days => ${days})
+        where item_id = ${itemId} and recipient = ${recipient}
+      `;
+    };
+
+    const writeItem = async (summary: string, sections: unknown[]) => {
+      const written = await write({ summary, sender: 'pm', sections });
+      return ((await written.json()) as { id: string }).id;
+    };
+
+    const pickup = { kind: 'request', replyForm: 'pickup', recipient: 'person', body: { text: 'take this' } };
+
+    const onlyWorkerWaits = await writeItem('only the worker waits', [pickup, question('session:worker')]);
+    await ageSection(onlyWorkerWaits, 'session:worker', 5);
+
+    await writeItem('the person waits since now', [question('person')]);
+
+    const personWaitsTwoDays = await writeItem('the person waits two days', [question('person')]);
+    await ageSection(personWaitsTwoDays, 'person', 2);
+
+    const bothWait = await writeItem('both wait, the worker for nine days', [
+      question('person'),
+      question('session:worker'),
+    ]);
+    await ageSection(bothWait, 'session:worker', 9);
+
+    type Row = { summary: string; unansweredCount: number };
+    const listed = async (query: string) =>
+      ((await (await app.request(`/api/items?${query}`)).json()) as { items: Row[] }).items.map((i) => [
+        i.summary,
+        i.unansweredCount,
+      ]);
+
+    expect(await listed('recipient=person&recipient=')).toEqual([
+      ['the person waits two days', 1],
+      ['the person waits since now', 1],
+      ['both wait, the worker for nine days', 1],
+      ['only the worker waits', 0],
+    ]);
+
+    expect(await listed('')).toEqual([
+      ['both wait, the worker for nine days', 2],
+      ['only the worker waits', 1],
+      ['the person waits two days', 1],
+      ['the person waits since now', 1],
+    ]);
   });
 
   it('keeps a section the person put off in their open list, and out of their unanswered one', async () => {
