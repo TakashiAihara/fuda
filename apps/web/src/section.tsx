@@ -136,18 +136,25 @@ function Waiting({ section, person }: { section: Row; person: string | null }) {
   );
 }
 
+type Postpone = ReturnType<typeof usePostpone>;
+
+/**
+ * Held by the reply form rather than by the button: the button moves or goes
+ * as the section's state changes, and what was said about a refused click has
+ * to stay up through that.
+ */
+function usePostpone(section: Row) {
+  return useAction(section, (postponed: boolean) => setPostponed(section.id, postponed));
+}
+
 /** Postponing is available beside any answer; taking it back up replaces them. */
-function Later({ section }: { section: Row }) {
-  const postpone = useAction(section, (postponed: boolean) => setPostponed(section.id, postponed));
+function Later({ section, postpone }: { section: Row; postpone: Postpone }) {
   const resuming = section.state === 'deferred';
 
   return (
-    <>
-      <button className="btn ghost" disabled={postpone.pending} onClick={() => postpone.send(!resuming)}>
-        {resuming ? 'resume' : 'later'}
-      </button>
-      <Complaint said={postpone.said} />
-    </>
+    <button className="btn ghost" disabled={postpone.pending} onClick={() => postpone.send(!resuming)}>
+      {resuming ? 'resume' : 'later'}
+    </button>
   );
 }
 
@@ -159,6 +166,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     (reply: ChoiceReply) => sendReply(section.id, reply),
     () => setNote(''),
   );
+  const postpone = usePostpone(section);
 
   // The stored reply is whatever the form that answered it carries, and nothing
   // in the row says which — except the reply form this branch is already in.
@@ -171,7 +179,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
       <div className="reply">
         <p className="reply-hint">answered by {section.answeredBy ?? 'someone'}</p>
         {shown === null ? null : <p className="answered-note">{shown}</p>}
-        <Complaint said={answer.said} />
+        <Complaint said={answer.said ?? postpone.said} />
       </div>
     );
   }
@@ -184,10 +192,10 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
         <p className="reply-hint">{hint(section)}</p>
         {controls.resume ? (
           <div className="reply-actions">
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         ) : null}
-        <Complaint said={answer.said} />
+        <Complaint said={answer.said ?? postpone.said} />
       </div>
     );
   }
@@ -196,7 +204,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     return (
       <div className="reply">
         <p className="reply-hint">{hint(section)}</p>
-        <Complaint said={answer.said} />
+        <Complaint said={answer.said ?? postpone.said} />
       </div>
     );
   }
@@ -259,11 +267,11 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
           >
             send
           </button>
-          <Later section={section} />
+          <Later section={section} postpone={postpone} />
         </div>
       </div>
 
-      <Complaint said={answer.said} />
+      <Complaint said={answer.said ?? postpone.said} />
     </div>
   );
 }
@@ -382,6 +390,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
       setNote('');
     },
   );
+  const postpone = usePostpone(section);
 
   const controls = controlsFor(section.replyForm, section.state, answerableBy(section.recipient, person));
 
@@ -392,7 +401,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
       <div className="reply">
         <p className="reply-hint">answered by {section.answeredBy ?? 'someone'}</p>
         {said === null ? null : <p className="answered-note">{said}</p>}
-        <Complaint said={answer.said} />
+        <Complaint said={answer.said ?? postpone.said} />
       </div>
     );
   }
@@ -403,10 +412,10 @@ function Form({ section, person }: { section: Row; person: string | null }) {
         <p className="reply-hint">{hint(section)}</p>
         {controls.resume ? (
           <div className="reply-actions">
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         ) : null}
-        <Complaint said={answer.said} />
+        <Complaint said={answer.said ?? postpone.said} />
       </div>
     );
   }
@@ -415,7 +424,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
     return (
       <div className="reply">
         <p className="reply-hint">{hint(section)}</p>
-        <Complaint said={answer.said} />
+        <Complaint said={answer.said ?? postpone.said} />
       </div>
     );
   }
@@ -455,7 +464,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
             >
               send
             </button>
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         </>
       ) : null}
@@ -477,7 +486,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
             <button className="btn" disabled={answer.pending} onClick={() => decide('decline')}>
               decline
             </button>
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         </>
       ) : null}
@@ -487,11 +496,11 @@ function Form({ section, person }: { section: Row; person: string | null }) {
           <button className="btn primary" disabled={answer.pending} onClick={() => answer.send({})}>
             done
           </button>
-          <Later section={section} />
+          <Later section={section} postpone={postpone} />
         </div>
       ) : null}
 
-      <Complaint said={answer.said} />
+      <Complaint said={answer.said ?? postpone.said} />
     </div>
   );
 }

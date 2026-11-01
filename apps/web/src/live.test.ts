@@ -72,6 +72,17 @@ describe('what a change refetches', () => {
     expect(client.getQueryState(['item', 'one'])?.isInvalidated).toBe(true);
     expect(client.getQueryState(['person'])?.isInvalidated).toBe(false);
   });
+
+  it('asks again for a person that failed to load', async () => {
+    const client = new QueryClient();
+
+    await client
+      .fetchQuery({ queryKey: ['person'], queryFn: () => Promise.reject(new Error('down')), retry: false })
+      .catch(() => undefined);
+    await changed(client);
+
+    expect(client.getQueryState(['person'])?.isInvalidated).toBe(true);
+  });
 });
 
 const mounted = async () => {
@@ -125,7 +136,11 @@ describe('the live connection', () => {
 
     vi.advanceTimersByTime(1);
 
-    expect(invalidateQueries.mock.calls).toEqual([[{ queryKey: ['items'] }], [{ queryKey: ['item'] }]]);
+    expect(invalidateQueries.mock.calls).toEqual([
+      [{ queryKey: ['items'] }],
+      [{ queryKey: ['item'] }],
+      [{ queryKey: ['person'], predicate: expect.any(Function) }],
+    ]);
   });
 
   it('refetches nothing for a change that was pending when it closed', async () => {

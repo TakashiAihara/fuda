@@ -40,12 +40,14 @@ export function gathered(
 
 /**
  * Refetches what a change can touch: the list and the items. Who the person is
- * does not change, so it is left alone.
+ * does not change, so a loaded person is left alone; a failed one is asked
+ * again, since the stream coming back is the only retry it gets.
  */
 export function changed(client: QueryClient): Promise<void> {
   return Promise.all([
     client.invalidateQueries({ queryKey: ['items'] }),
     client.invalidateQueries({ queryKey: ['item'] }),
+    client.invalidateQueries({ queryKey: ['person'], predicate: (query) => query.state.status === 'error' }),
   ]).then(() => undefined);
 }
 

@@ -173,6 +173,35 @@ test('a section that changed under the click says the click was not recorded, an
   await expect(detail.getByText('not recorded: this section changed while it was open')).toBeVisible();
 });
 
+test('a refused later keeps saying so after the section has been answered meanwhile', async ({
+  page,
+  request,
+}) => {
+  const item = await writeItem(request, question('answered while being put off'));
+  const { list, detail } = regions(page);
+  const section = item.sections[0] as SectionRow;
+
+  await page.route(/\/api\/sections\/[^/]+\/defer$/, async (route) => {
+    // The answer lands first, so the later button is gone once the reload shows it.
+    const done = await request.post(`/api/sections/${section.id}/reply`, {
+      data: { reply: { text: 'answered first' } },
+    });
+
+    expect(done.status()).toBe(200);
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: '{"error":"no longer waiting"}',
+    });
+  });
+  await page.goto('/');
+  await list.getByRole('button', { name: item.summary }).click();
+  await detail.getByRole('button', { name: 'later' }).click();
+
+  await expect(detail.getByText('answered first', { exact: true })).toBeVisible();
+  await expect(detail.getByText('not recorded: this section changed while it was open')).toBeVisible();
+});
+
 test('a failure that is reported after the section already shows as answered is not shown', async ({
   page,
   request,
