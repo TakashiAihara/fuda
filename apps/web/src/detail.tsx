@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
-import { markRead, readItem, stillShowing } from './api.ts';
+import { useEffect, useRef, useState } from 'react';
+import { closeItem, complaint, markRead, readItem, stillShowing } from './api.ts';
 import { Section } from './section.tsx';
 
 export function Detail({ id, person }: { id: string; person: string | null }) {
@@ -16,6 +16,20 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
     onSuccess: (_, target) => {
       void client.invalidateQueries({ queryKey: ['items'] });
       void client.invalidateQueries({ queryKey: ['item', target] });
+    },
+  });
+
+  const [said, setSaid] = useState<string | null>(null);
+
+  const { mutate: close, isPending: closing } = useMutation({
+    mutationFn: () => closeItem(id),
+    onSuccess: () => {
+      setSaid(null);
+      void client.invalidateQueries();
+    },
+    onError: (error: unknown) => {
+      setSaid(complaint(error));
+      void client.invalidateQueries();
     },
   });
 
@@ -36,16 +50,24 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
     <>
       {item.isError ? <p className="complaint">{stillShowing}</p> : null}
       <div className="detail-head">
-        <h1>{item.data.summary}</h1>
-        <div className="labels">
-          <span className="label">{item.data.sender}</span>
-          {Object.entries(item.data.attribution).map(([key, value]) => (
-            <span className="label" key={key}>
-              {key}={value}
-            </span>
-          ))}
-          {item.data.closedAt === null ? null : <span className="label">closed</span>}
+        <div>
+          <h1>{item.data.summary}</h1>
+          <div className="labels">
+            <span className="label">{item.data.sender}</span>
+            {Object.entries(item.data.attribution).map(([key, value]) => (
+              <span className="label" key={key}>
+                {key}={value}
+              </span>
+            ))}
+            {item.data.closedAt === null ? null : <span className="label">closed</span>}
+          </div>
+          {said === null ? null : <p className="complaint">{said}</p>}
         </div>
+        {item.data.closedAt === null ? (
+          <button className="btn ghost" disabled={closing} onClick={() => close()}>
+            close item
+          </button>
+        ) : null}
       </div>
       <div className="scroll">
         <div className="sections">
