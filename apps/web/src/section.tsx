@@ -26,10 +26,11 @@ export function Section({ section, person }: { section: Row; person: string | nu
         <span className="to">→ {section.recipient ?? 'anyone'}</span>
       </div>
 
-      {/* Bodies come from agents. No rehype-raw, so HTML stays text, and no
-          image elements (only the alt is shown), which the browser would fetch the moment the item is opened —
-          from any address the agent wrote, LAN included. A single newline is a
-          line break, because agents write plain lines as often as markdown. */}
+      {/* Bodies come from agents. No rehype-raw, so HTML stays text. Images
+          show their alt only: an image element would be fetched the moment the
+          item is opened, from any address the agent wrote, LAN included. A
+          single newline is a line break, because agents write plain lines as
+          often as markdown. */}
       <div className="body">
         <Markdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
