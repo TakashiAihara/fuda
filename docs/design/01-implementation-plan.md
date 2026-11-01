@@ -61,7 +61,7 @@ PostgreSQL. Settled axes are columns; section bodies and overflow are JSONB, per
 | ------------------ | ---------------- | ------------------------------------------------------------------------------------------------ |
 | `id`               | uuid v7          |                                                                                                  |
 | `item_id`          | uuid             | cascade delete                                                                                   |
-| `position`         | int              | order within the item                                                                            |
+| `position`         | int              | order within the item; unique per item                                                           |
 | `kind`             | text             | `report` \| `notice` \| `question` \| `request`                                                  |
 | `reply_form`       | text null        | `free_text` \| `choice` \| `approval` \| `external_tool` \| `pickup`; null means no reply needed |
 | `body`             | jsonb            | the varying part: `{ "text": "…", "options": […], "link": "…" }`                                 |
