@@ -1,5 +1,5 @@
 import { type Item, initialStateFor, type SectionState } from '@fuda/core';
-import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm';
 import type { Database } from '../db/client.ts';
 import { itemList, items, sections } from '../db/schema.ts';
 
@@ -139,6 +139,11 @@ export function createItemRepository(database: Database) {
      */
     async list(query: ListQuery = {}): Promise<ListedItem[]> {
       const conditions = [];
+      let unansweredCount: SQL<number> | typeof itemList.unansweredCount = itemList.unansweredCount;
+      let oldestUnansweredAt: SQL<Date | null> | typeof itemList.oldestUnansweredAt =
+        itemList.oldestUnansweredAt;
+      let deferredCount: SQL<number> | typeof itemList.deferredCount = itemList.deferredCount;
+      let openRequestCount: SQL<number> | typeof itemList.openRequestCount = itemList.openRequestCount;
 
       if (query.closed === true) conditions.push(isNotNull(itemList.closedAt));
       if (query.closed !== true) conditions.push(isNull(itemList.closedAt));
@@ -184,6 +189,22 @@ export function createItemRepository(database: Database) {
               ? ['unanswered']
               : ['unanswered', 'deferred', 'not_started', 'in_progress'];
 
+        // Asked of the sections the filter matched, so what waits on somebody
+        // else in the same item neither counts, nor places it, nor shows as
+        // theirs to take. Without a filter the view's totals stand.
+        const ofMine = (aggregate: SQL) =>
+          sql`(select ${aggregate} from ${sections}
+            where ${sections.itemId} = ${itemList.id}
+              and (${sql.join(alternatives, sql` or `)}))`;
+        unansweredCount = sql<number>`${ofMine(sql`count(*) filter (where ${sections.state} = 'unanswered')::int`)}`;
+        oldestUnansweredAt = sql<Date | null>`${ofMine(
+          sql`min(${sections.unansweredSince}) filter (where ${sections.state} = 'unanswered')`,
+        )}`.mapWith(itemList.oldestUnansweredAt);
+        deferredCount = sql<number>`${ofMine(sql`count(*) filter (where ${sections.state} = 'deferred')::int`)}`;
+        openRequestCount = sql<number>`${ofMine(
+          sql`count(*) filter (where ${sections.state} in ('not_started', 'in_progress'))::int`,
+        )}`;
+
         conditions.push(
           sql`exists (
             select 1 from ${sections}
@@ -195,14 +216,26 @@ export function createItemRepository(database: Database) {
       }
 
       return db
-        .select()
+        .select({
+          id: itemList.id,
+          summary: itemList.summary,
+          sender: itemList.sender,
+          attribution: itemList.attribution,
+          createdAt: itemList.createdAt,
+          readAt: itemList.readAt,
+          closedAt: itemList.closedAt,
+          oldestUnansweredAt,
+          unansweredCount,
+          deferredCount,
+          openRequestCount,
+          sectionCount: itemList.sectionCount,
+        })
         .from(itemList)
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(
-          // Unanswered items come first as a group...
-          sql`(${itemList.unansweredCount} = 0)`,
-          // ...oldest first inside it, and nulls (everything else) after.
-          sql`${itemList.oldestUnansweredAt} asc nulls last`,
+          // Unanswered items first, oldest first; an item with nothing
+          // unanswered has no oldest time, so nulls last puts it after them.
+          sql`${oldestUnansweredAt} asc nulls last`,
           desc(itemList.createdAt),
           // A unique last key, so an offset cannot land between two rows that
           // tie on everything above and show one twice and the other never.

@@ -12,6 +12,31 @@ const url = process.env['FUDA_TEST_DATABASE_URL'];
 
 if (url !== undefined) assertDisposable(url, process.env['FUDA_DATABASE_URL']);
 
+const question = (recipient: string) => ({
+  kind: 'question',
+  replyForm: 'approval',
+  recipient,
+  body: { text: 'ok?' },
+});
+
+const pickup = (recipient: string) => ({
+  kind: 'request',
+  replyForm: 'pickup',
+  recipient,
+  body: { text: 'take this' },
+});
+
+type ListedRow = {
+  summary: string;
+  unansweredCount: number;
+  deferredCount: number;
+  openRequestCount: number;
+  oldestUnansweredAt: string | null;
+};
+
+const counts = (rows: ListedRow[]) =>
+  rows.map((i) => [i.summary, i.unansweredCount, i.deferredCount, i.openRequestCount]);
+
 /**
  * Driven through the real HTTP entry point against real PostgreSQL, because
  * that is what both the agent and the browser will be holding. Nothing is
@@ -352,6 +377,87 @@ describe.skipIf(!url)('items over HTTP', () => {
 
     expect(await summaries('recipient=person&state=unanswered')).toEqual([]);
     expect(await summaries('recipient=person&state=open')).toEqual(['the person has to take this']);
+  });
+
+  it('counts and orders the person’s list by their own sections, and the whole list by all of them', async () => {
+    // By position, so one item can hold sections of different ages.
+    const age = async (itemId: string, position: number, hours: number) => {
+      await database.sql`
+        update sections
+        set unanswered_since = now() - make_interval(hours => ${hours})
+        where item_id = ${itemId} and position = ${position}
+      `;
+    };
+
+    const writeItem = async (summary: string, sections: unknown[]) => {
+      const written = await write({ summary, sender: 'pm', sections });
+      return (await written.json()) as { id: string; sections: { id: string }[] };
+    };
+
+    const onlyWorkerWaits = await writeItem('only the worker waits', [
+      pickup('person'),
+      question('session:worker'),
+    ]);
+    await age(onlyWorkerWaits.id, 1, 5 * 24);
+
+    const sinceAnHour = await writeItem('the person waits an hour', [question('person')]);
+    await age(sinceAnHour.id, 0, 1);
+
+    const personWaitsTwoDays = await writeItem('the person waits two days', [question('person')]);
+    await age(personWaitsTwoDays.id, 0, 2 * 24);
+
+    // Two of the person's own, three days and now: the older one places it.
+    const twice = await writeItem('the person waits twice', [question('person'), question('person')]);
+    await age(twice.id, 0, 3 * 24);
+
+    const bothWait = await writeItem('both wait, the worker for nine days', [
+      question('person'),
+      question('session:worker'),
+      pickup('session:worker'),
+      question('person'),
+    ]);
+    await age(bothWait.id, 1, 9 * 24);
+    const deferred = await app.request(`/api/sections/${bothWait.sections[3]?.id}/defer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(deferred.status).toBe(200);
+
+    const listed = async (query: string) =>
+      ((await (await app.request(`/api/items?${query}`)).json()) as { items: ListedRow[] }).items;
+
+    const mine = await listed('recipient=person&recipient=');
+
+    expect(counts(mine)).toEqual([
+      ['the person waits twice', 2, 0, 0],
+      ['the person waits two days', 1, 0, 0],
+      ['the person waits an hour', 1, 0, 0],
+      ['both wait, the worker for nine days', 1, 1, 0],
+      ['only the worker waits', 0, 0, 1],
+    ]);
+    // Same JSON shape as the unfiltered list: an ISO timestamp, or null.
+    expect(mine.map((i) => i.oldestUnansweredAt?.replace(/\d/g, '0') ?? null)).toEqual([
+      '0000-00-00T00:00:00.000Z',
+      '0000-00-00T00:00:00.000Z',
+      '0000-00-00T00:00:00.000Z',
+      '0000-00-00T00:00:00.000Z',
+      null,
+    ]);
+
+    // The other way round: what the person put off is not the worker's.
+    expect(counts(await listed('recipient=session:worker'))).toEqual([
+      ['both wait, the worker for nine days', 1, 0, 1],
+      ['only the worker waits', 1, 0, 0],
+    ]);
+
+    expect(counts(await listed(''))).toEqual([
+      ['both wait, the worker for nine days', 2, 1, 1],
+      ['only the worker waits', 1, 0, 1],
+      ['the person waits twice', 2, 0, 0],
+      ['the person waits two days', 1, 0, 0],
+      ['the person waits an hour', 1, 0, 0],
+    ]);
   });
 
   it('keeps a section the person put off in their open list, and out of their unanswered one', async () => {
