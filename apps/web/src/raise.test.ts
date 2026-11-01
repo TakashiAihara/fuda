@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Refused } from './api.ts';
-import { raiseComplaint, raisedItem } from './raise.ts';
+import { raisableFrom, raiseComplaint, raisedItem } from './raise.ts';
 
 const origin = {
   id: 'item-1',
@@ -74,9 +74,13 @@ describe('what raising a separate item sends', () => {
   });
 
   it('says it may not have been raised when the outcome is unknown', () => {
-    const unknown = 'the item may not have been raised — check the list before raising it again';
+    const unknown =
+      'the item may not have been raised — reload the item you raised it from before raising it again';
 
     expect(raiseComplaint(new Refused(503, 'down'))).toBe(unknown);
+    // 500 is the boundary: a server error, not a refusal on the rules.
+    expect(raiseComplaint(new Refused(500, 'boom'))).toBe(unknown);
+    expect(raiseComplaint(new Refused(499, 'closed'))).toBe('closed');
     expect(raiseComplaint(new TypeError('network'))).toBe(unknown);
   });
 
@@ -85,5 +89,21 @@ describe('what raising a separate item sends', () => {
 
     expect(item).not.toBeNull();
     expect(Object.keys(item!)).not.toContain('sender');
+  });
+});
+
+describe('where raising a separate item is offered', () => {
+  it('is offered beside any reply form the person may act on', () => {
+    expect(raisableFrom('free_text', true)).toBe(true);
+    expect(raisableFrom('choice', true)).toBe(true);
+  });
+
+  it('is not offered on a section for somebody else', () => {
+    expect(raisableFrom('free_text', false)).toBe(false);
+  });
+
+  it('is not offered on a pickup or a section with no reply form', () => {
+    expect(raisableFrom('pickup', true)).toBe(false);
+    expect(raisableFrom(null, true)).toBe(false);
   });
 });

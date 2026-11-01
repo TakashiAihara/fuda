@@ -134,6 +134,16 @@ test('a thought raised beside a free text reply becomes its own item and answers
   const stillThere = (await readItem(request, first.id)).sections[0] as SectionRow;
 
   expect(stillThere.state).toBe('unanswered');
+
+  // Following the link selects the new item in place: no reload, so a marker
+  // set on the page survives, and the address now names the raised item.
+  await page.evaluate(() => {
+    (globalThis as { kept?: boolean }).kept = true;
+  });
+  await detail.getByRole('link', { name: 'raised: check the backup job' }).click();
+  await expect(detail.getByRole('heading', { name: 'check the backup job' })).toBeVisible();
+  expect(page.url()).toContain(`item=${raised.id}`);
+  expect(await page.evaluate(() => (globalThis as { kept?: boolean }).kept)).toBe(true);
 });
 
 test('cancel closes the field without sending anything', async ({ page, request }) => {

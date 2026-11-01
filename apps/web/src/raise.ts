@@ -50,5 +50,15 @@ export function raisedItem(
 export function raiseComplaint(error: unknown): string {
   if (error instanceof Refused && error.status < 500) return error.message;
 
-  return 'the item may not have been raised — check the list before raising it again';
+  return 'the item may not have been raised — reload the item you raised it from before raising it again';
+}
+
+/**
+ * Whether a section offers raising a separate item. Anything the person may act
+ * on, in any state, so typed text outlives an answer; a pickup is taken by an
+ * agent and a section with no reply form owes nothing, so neither has a reply
+ * field to stand beside.
+ */
+export function raisableFrom(replyForm: string | null, answerable: boolean): boolean {
+  return answerable && replyForm !== null && replyForm !== 'pickup';
 }

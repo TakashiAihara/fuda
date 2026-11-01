@@ -8,7 +8,7 @@ import type { Section as Row } from './api.ts';
 import { complaint, raiseItem, sendReply, setPostponed } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
-import { raiseComplaint, raisedItem, type RaiseOrigin } from './raise.ts';
+import { raisableFrom, raiseComplaint, raisedItem, type RaiseOrigin } from './raise.ts';
 
 /**
  * One section: what it says, and whatever can be done with it from here.
@@ -20,10 +20,12 @@ export function Section({
   section,
   person,
   origin,
+  onOpen,
 }: {
   section: Row;
   person: string | null;
   origin: RaiseOrigin;
+  onOpen: (id: string) => void;
 }) {
   return (
     <div className="section">
@@ -76,11 +78,8 @@ export function Section({
 
       {/* Here rather than inside a reply form: those swap out as the section's
           state changes, and the typed text must outlive that. */}
-      {person !== null &&
-      section.replyForm !== null &&
-      section.replyForm !== 'pickup' &&
-      answerableBy(section.recipient, person) ? (
-        <Raise section={section} person={person} origin={origin} />
+      {person !== null && raisableFrom(section.replyForm, answerableBy(section.recipient, person)) ? (
+        <Raise section={section} person={person} origin={origin} onOpen={onOpen} />
       ) : null}
     </div>
   );
@@ -270,7 +269,17 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
  * It is not an answer: the section stays as it was, and the new item records
  * where it was raised.
  */
-function Raise({ section, person, origin }: { section: Row; person: string; origin: RaiseOrigin }) {
+function Raise({
+  section,
+  person,
+  origin,
+  onOpen,
+}: {
+  section: Row;
+  person: string;
+  origin: RaiseOrigin;
+  onOpen: (id: string) => void;
+}) {
   const client = useQueryClient();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -338,7 +347,17 @@ function Raise({ section, person, origin }: { section: Row; person: string; orig
       )}
       {raised === null ? null : (
         <p className="reply-hint">
-          <a href={`?item=${encodeURIComponent(raised.id)}`}>raised: {raised.summary}</a>
+          {/* A real href so it can be opened in a new tab; a plain click selects in
+              place, so typed text, the cache and the live connection survive. */}
+          <a
+            href={`?item=${encodeURIComponent(raised.id)}`}
+            onClick={(event) => {
+              event.preventDefault();
+              onOpen(raised.id);
+            }}
+          >
+            raised: {raised.summary}
+          </a>
         </p>
       )}
       <Complaint said={said} />
