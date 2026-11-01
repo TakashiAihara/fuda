@@ -182,10 +182,32 @@ export const stillShowing = 'could not reload from fuda — showing what was las
  */
 export function complaint(error: unknown): string {
   if (error instanceof Refused && error.status === 409) {
-    return 'this section changed while it was open, so it is being reloaded — have another look';
+    return 'not recorded: this section changed while it was open, so it is being reloaded — have another look';
   }
 
   if (error instanceof Refused && error.status < 500) return error.message;
 
   return 'the answer may not have reached fuda — what is shown is what fuda last said it holds';
+}
+
+/** What was said about a failed call, and what it was said about. */
+export type Note = { text: string; outlives: boolean; sentAt: SectionState | null };
+
+/**
+ * The note for a call that failed, tied to the state the section was in when
+ * the call was made.
+ *
+ * Only a 409 outlives the section moving on: it says the click was refused, and
+ * that stays true however the section changed. Anything else is a statement
+ * about the section as it was, and a reload that lands first can make it false.
+ */
+export function noteFor(error: unknown, sentAt: SectionState | null): Note {
+  return { text: complaint(error), outlives: error instanceof Refused && error.status === 409, sentAt };
+}
+
+/** Compared when shown rather than cleared on a change, so a reload landing before the failure does not leave it up. */
+export function noteShown(note: Note | null, state: SectionState | null): string | null {
+  if (note === null) return null;
+
+  return note.outlives || note.sentAt === state ? note.text : null;
 }

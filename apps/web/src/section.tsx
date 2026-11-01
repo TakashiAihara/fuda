@@ -1,13 +1,14 @@
 import type { ApprovalReply, ChoiceReply, Reply } from '@fuda/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import type { Section as Row } from './api.ts';
-import { complaint, raiseItem, sendReply, setPostponed } from './api.ts';
+import { noteFor, noteShown, raiseItem, sendReply, setPostponed, type Note } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
+import { changed } from './live.ts';
 import { raisableFrom, raiseComplaint, raisedItem, type RaiseOrigin } from './raise.ts';
 
 /**
@@ -47,8 +48,9 @@ export function Section({
           remarkPlugins={[remarkGfm, remarkBreaks]}
           components={{
             a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
-            img: ({ alt }) =>
-              alt === undefined || alt === '' ? null : <span className="image-alt">[{alt}]</span>,
+            img: ({ alt }) => (
+              <span className="image-alt">[{alt === undefined || alt === '' ? 'image' : alt}]</span>
+            ),
           }}
         >
           {section.body.text}
@@ -93,26 +95,29 @@ export function Section({
  */
 function useAction<T>(section: Row, run: (argument: T) => Promise<unknown>, onDone?: () => void) {
   const client = useQueryClient();
-  const [said, setSaid] = useState<string | null>(null);
-
-  // What was said about a failed call stops being true once the section has
-  // moved on, and the moved section speaks for itself.
-  useEffect(() => setSaid(null), [section.state]);
+  const [note, setNote] = useState<Note | null>(null);
+  const sentAt = useRef(section.state);
 
   const action = useMutation({
     mutationFn: run,
     onSuccess: () => {
       onDone?.();
-      setSaid(null);
-      void client.invalidateQueries();
+      setNote(null);
+      void changed(client);
     },
     onError: (error: unknown) => {
-      setSaid(complaint(error));
-      void client.invalidateQueries();
+      setNote(noteFor(error, sentAt.current));
+      void changed(client);
     },
   });
 
-  return { send: action.mutate, pending: action.isPending, said };
+  const send = (argument: T) => {
+    sentAt.current = section.state;
+    setNote(null);
+    action.mutate(argument);
+  };
+
+  return { send, pending: action.isPending, said: noteShown(note, section.state) };
 }
 
 function Complaint({ said }: { said: string | null }) {
@@ -131,18 +136,25 @@ function Waiting({ section, person }: { section: Row; person: string | null }) {
   );
 }
 
+type Postpone = ReturnType<typeof usePostpone>;
+
+/**
+ * Held by the reply form rather than by the button: the button moves or goes
+ * as the section's state changes, and what was said about a refused click has
+ * to stay up through that.
+ */
+function usePostpone(section: Row) {
+  return useAction(section, (postponed: boolean) => setPostponed(section.id, postponed));
+}
+
 /** Postponing is available beside any answer; taking it back up replaces them. */
-function Later({ section }: { section: Row }) {
-  const postpone = useAction(section, (postponed: boolean) => setPostponed(section.id, postponed));
+function Later({ section, postpone }: { section: Row; postpone: Postpone }) {
   const resuming = section.state === 'deferred';
 
   return (
-    <>
-      <button className="btn ghost" disabled={postpone.pending} onClick={() => postpone.send(!resuming)}>
-        {resuming ? 'resume' : 'later'}
-      </button>
-      <Complaint said={postpone.said} />
-    </>
+    <button className="btn ghost" disabled={postpone.pending} onClick={() => postpone.send(!resuming)}>
+      {resuming ? 'resume' : 'later'}
+    </button>
   );
 }
 
@@ -154,6 +166,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
     (reply: ChoiceReply) => sendReply(section.id, reply),
     () => setNote(''),
   );
+  const postpone = usePostpone(section);
 
   // The stored reply is whatever the form that answered it carries, and nothing
   // in the row says which — except the reply form this branch is already in.
@@ -167,6 +180,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
         <p className="reply-hint">answered by {section.answeredBy ?? 'someone'}</p>
         {shown === null ? null : <p className="answered-note">{shown}</p>}
         <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -179,10 +193,11 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
         <p className="reply-hint">{hint(section)}</p>
         {controls.resume ? (
           <div className="reply-actions">
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         ) : null}
         <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -192,6 +207,7 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
       <div className="reply">
         <p className="reply-hint">{hint(section)}</p>
         <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -254,11 +270,12 @@ function Choice({ section, person }: { section: Row; person: string | null }) {
           >
             send
           </button>
-          <Later section={section} />
+          <Later section={section} postpone={postpone} />
         </div>
       </div>
 
       <Complaint said={answer.said} />
+      <Complaint said={postpone.said} />
     </div>
   );
 }
@@ -295,7 +312,7 @@ function Raise({
       setText('');
       setSaid(null);
       setRaised(made);
-      void client.invalidateQueries();
+      void changed(client);
     },
     onError: (error: unknown) => setSaid(raiseComplaint(error)),
   });
@@ -377,6 +394,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
       setNote('');
     },
   );
+  const postpone = usePostpone(section);
 
   const controls = controlsFor(section.replyForm, section.state, answerableBy(section.recipient, person));
 
@@ -388,6 +406,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
         <p className="reply-hint">answered by {section.answeredBy ?? 'someone'}</p>
         {said === null ? null : <p className="answered-note">{said}</p>}
         <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -398,10 +417,11 @@ function Form({ section, person }: { section: Row; person: string | null }) {
         <p className="reply-hint">{hint(section)}</p>
         {controls.resume ? (
           <div className="reply-actions">
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         ) : null}
         <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -411,6 +431,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
       <div className="reply">
         <p className="reply-hint">{hint(section)}</p>
         <Complaint said={answer.said} />
+        <Complaint said={postpone.said} />
       </div>
     );
   }
@@ -450,7 +471,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
             >
               send
             </button>
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         </>
       ) : null}
@@ -472,7 +493,7 @@ function Form({ section, person }: { section: Row; person: string | null }) {
             <button className="btn" disabled={answer.pending} onClick={() => decide('decline')}>
               decline
             </button>
-            <Later section={section} />
+            <Later section={section} postpone={postpone} />
           </div>
         </>
       ) : null}
@@ -482,11 +503,12 @@ function Form({ section, person }: { section: Row; person: string | null }) {
           <button className="btn primary" disabled={answer.pending} onClick={() => answer.send({})}>
             done
           </button>
-          <Later section={section} />
+          <Later section={section} postpone={postpone} />
         </div>
       ) : null}
 
       <Complaint said={answer.said} />
+      <Complaint said={postpone.said} />
     </div>
   );
 }

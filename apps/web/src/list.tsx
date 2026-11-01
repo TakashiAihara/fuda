@@ -67,7 +67,11 @@ export function List({
           onClick={() => void items.fetchNextPage()}
           disabled={items.isFetching}
         >
-          {items.isFetchingNextPage ? 'asking fuda…' : 'Show more'}
+          {items.isFetchingNextPage
+            ? 'asking fuda…'
+            : items.isFetching
+              ? 'Show more — reloading the list first'
+              : 'Show more'}
         </button>
       ) : null}
     </>

@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 /** How long changes are gathered before the screen refetches once for all of them. */
@@ -39,6 +39,19 @@ export function gathered(
 }
 
 /**
+ * Refetches what a change can touch: the list and the items. Who the person is
+ * does not change, so a loaded person is left alone; a failed one is asked
+ * again, since with retries off React Query will not ask again by itself.
+ */
+export function changed(client: QueryClient): Promise<void> {
+  return Promise.all([
+    client.invalidateQueries({ queryKey: ['items'] }),
+    client.invalidateQueries({ queryKey: ['item'] }),
+    client.invalidateQueries({ queryKey: ['person'], predicate: (query) => query.state.status === 'error' }),
+  ]).then(() => undefined);
+}
+
+/**
  * Told that something changed, rather than told what changed.
  *
  * The stream carries which item and which section, and turning that into a patch
@@ -60,11 +73,7 @@ export function useLiveChanges(): void {
     // changes would otherwise keep it from finishing. Changes further apart
     // than the window still cancel each other, and a burst that never stops
     // is cut at the longest wait.
-    const { trigger: refetch, cancel } = gathered(
-      () => void client.invalidateQueries(),
-      gatherMs,
-      gatherAtMostMs,
-    );
+    const { trigger: refetch, cancel } = gathered(() => void changed(client), gatherMs, gatherAtMostMs);
 
     events.addEventListener('open', refetch);
     events.addEventListener('change', refetch);

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { complaint, listItems, personIdentity, Refused } from './api.ts';
+import { complaint, listItems, noteFor, noteShown, personIdentity, Refused } from './api.ts';
 
 describe('what a refused answer says', () => {
   it('repeats what the server said, because it knows what is wrong', () => {
@@ -15,7 +15,7 @@ describe('what a refused answer says', () => {
     // A 409 does not say whether somebody answered it or somebody postponed it,
     // so naming either would be a guess about another actor's intent.
     expect(complaint(new Refused(409, 'this is no longer waiting for an answer'))).toBe(
-      'this section changed while it was open, so it is being reloaded — have another look',
+      'not recorded: this section changed while it was open, so it is being reloaded — have another look',
     );
   });
 
@@ -38,6 +38,26 @@ describe('what a refused answer says', () => {
 
   it('keeps the server words for the last status below a server error', () => {
     expect(complaint(new Refused(499, 'closed before an answer'))).toBe('closed before an answer');
+  });
+});
+
+describe('how long a note about a failed call is shown', () => {
+  it('keeps a 409 note after the section has moved on', () => {
+    const note = noteFor(new Refused(409, 'no longer waiting'), 'unanswered');
+
+    expect(noteShown(note, 'answered')).toContain('not recorded');
+  });
+
+  it('keeps the other notes only while the section is as it was when sent', () => {
+    const note = noteFor(new TypeError('fetch failed'), 'unanswered');
+
+    expect(noteShown(note, 'unanswered')).toContain('may not have reached fuda');
+    expect(noteShown(note, 'answered')).toBeNull();
+    expect(noteShown(note, 'deferred')).toBeNull();
+  });
+
+  it('shows nothing when there is no note', () => {
+    expect(noteShown(null, 'unanswered')).toBeNull();
   });
 });
 
