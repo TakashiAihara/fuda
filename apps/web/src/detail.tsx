@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { closeItem, complaint, markRead, readItem, stillShowing } from './api.ts';
+import { changed } from './live.ts';
 import { Section } from './section.tsx';
 
 // Every item this page has asked to mark, kept for the page's lifetime rather
@@ -35,11 +36,11 @@ export function Detail({
     mutationFn: () => closeItem(id),
     onSuccess: () => {
       setSaid(null);
-      void client.invalidateQueries();
+      void changed(client);
     },
     onError: (error: unknown) => {
       setSaid(complaint(error));
-      void client.invalidateQueries();
+      void changed(client);
     },
   });
 

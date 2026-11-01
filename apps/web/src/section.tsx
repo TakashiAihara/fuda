@@ -1,13 +1,14 @@
 import type { ApprovalReply, ChoiceReply, Reply } from '@fuda/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import type { Section as Row } from './api.ts';
-import { complaint, raiseItem, sendReply, setPostponed } from './api.ts';
+import { noteFor, noteShown, raiseItem, sendReply, setPostponed, type Note } from './api.ts';
 import { answerableBy, choiceAnswer, choiceShown, sendsOnKey } from './choice.ts';
 import { approvalAnswer, controlsFor, freeTextAnswer } from './forms.ts';
+import { changed } from './live.ts';
 import { raisableFrom, raiseComplaint, raisedItem, type RaiseOrigin } from './raise.ts';
 
 /**
@@ -47,8 +48,9 @@ export function Section({
           remarkPlugins={[remarkGfm, remarkBreaks]}
           components={{
             a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
-            img: ({ alt }) =>
-              alt === undefined || alt === '' ? null : <span className="image-alt">[{alt}]</span>,
+            img: ({ alt }) => (
+              <span className="image-alt">[{alt === undefined || alt === '' ? 'image' : alt}]</span>
+            ),
           }}
         >
           {section.body.text}
@@ -93,26 +95,29 @@ export function Section({
  */
 function useAction<T>(section: Row, run: (argument: T) => Promise<unknown>, onDone?: () => void) {
   const client = useQueryClient();
-  const [said, setSaid] = useState<string | null>(null);
-
-  // What was said about a failed call stops being true once the section has
-  // moved on, and the moved section speaks for itself.
-  useEffect(() => setSaid(null), [section.state]);
+  const [note, setNote] = useState<Note | null>(null);
+  const sentAt = useRef(section.state);
 
   const action = useMutation({
     mutationFn: run,
     onSuccess: () => {
       onDone?.();
-      setSaid(null);
-      void client.invalidateQueries();
+      setNote(null);
+      void changed(client);
     },
     onError: (error: unknown) => {
-      setSaid(complaint(error));
-      void client.invalidateQueries();
+      setNote(noteFor(error, sentAt.current));
+      void changed(client);
     },
   });
 
-  return { send: action.mutate, pending: action.isPending, said };
+  const send = (argument: T) => {
+    sentAt.current = section.state;
+    setNote(null);
+    action.mutate(argument);
+  };
+
+  return { send, pending: action.isPending, said: noteShown(note, section.state) };
 }
 
 function Complaint({ said }: { said: string | null }) {
@@ -295,7 +300,7 @@ function Raise({
       setText('');
       setSaid(null);
       setRaised(made);
-      void client.invalidateQueries();
+      void changed(client);
     },
     onError: (error: unknown) => setSaid(raiseComplaint(error)),
   });
