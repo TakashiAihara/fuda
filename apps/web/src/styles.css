@@ -215,8 +215,22 @@ body {
 /* -------------------------------------------------------------- detail */
 
 .detail-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
   padding: 18px 22px 14px;
   border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+/* The title side shrinks and wraps, so a long label never pushes the close
+   button out of the pane. */
+.detail-head > div {
+  min-width: 0;
+}
+
+.detail-head > .btn {
   flex: none;
 }
 
@@ -242,6 +256,7 @@ body {
   background: var(--sunk);
   border-radius: 4px;
   padding: 1px 6px;
+  overflow-wrap: anywhere;
 }
 
 .sections {
@@ -309,12 +324,71 @@ body {
   margin-left: auto;
 }
 
-/* Plain text for now. The requirements call for markdown eventually, and
-   rendering it as markdown means rendering it as HTML, which is a decision to
-   make once rather than by accident. */
 .body {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.body > :first-child {
+  margin-top: 0;
+}
+
+.body > :last-child {
+  margin-bottom: 0;
+}
+
+.body p,
+.body ul,
+.body ol,
+.body pre,
+.body table,
+.body blockquote {
+  margin: 0 0 0.7em;
+}
+
+.body ul,
+.body ol {
+  padding-left: 1.4em;
+}
+
+.body h1,
+.body h2,
+.body h3,
+.body h4 {
+  margin: 0.9em 0 0.4em;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.body code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.body pre {
+  overflow-x: auto;
+  padding: 8px 10px;
+  background: var(--sunk);
+  border-radius: var(--radius);
+}
+
+.body blockquote {
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-soft);
+}
+
+.body table {
+  border-collapse: collapse;
+}
+
+.body th,
+.body td {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+}
+
+.body a {
+  color: var(--taken);
 }
 
 .reply {
@@ -453,4 +527,8 @@ body {
     height: auto;
     min-height: 100vh;
   }
+}
+
+.image-alt {
+  color: var(--ink-soft);
 }

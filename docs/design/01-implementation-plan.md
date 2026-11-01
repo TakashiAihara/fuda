@@ -332,14 +332,14 @@ Each step leaves the tree working and is one draft PR.
 | 1 ✅ | Workspace, TypeScript, lint, `compose.yaml`, PostgreSQL, migration runner, `docs/glossary.md`, CI                                                                                | `docker compose up` is healthy                               |
 | 2 ✅ | core schemas and state machines, tables, repository, `POST`/`GET` items                                                                                                          | an item round-trips through the API, with tests              |
 | 3 ✅ | `fuda write`, `list`, `show`                                                                                                                                                     | the agent can store and read items                           |
-| 4 (partly) | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE. Built: list, detail, answering a `choice`, read marks, SSE. Not yet: answering `free_text` / `approval` / `external_tool`, defer, close, raise-a-separate-item, markdown | the loop closes without the terminal                         |
+| 4 (partly) | Web: list, detail, reply, defer, close, read marks, raise-a-separate-item, SSE. Built: list, detail, answering every reply form, defer / resume, close, read marks, markdown, SSE. Not yet: raise-a-separate-item | the loop closes without the terminal                         |
 | 4b | Activity: the table, `POST`/`GET /api/activity`, `fuda activity`, the third region of the screen and its toasts | the work is watchable without the terminal |
 | 5   | `fuda mcp`                                                                                                                                                                       | agents on MCP have the same reach                            |
 | 6   | Pickup: claim on write, `--if-stale`, finish, stale return. Agent-side answering: `reply`, `defer`, `resume`, `withdraw`, refused when the sender is not the recipient | requests flow both ways, and agent to agent works end to end |
 | 7   | Notifications: batching, one reminder, `none` and `webhook` targets. The activity sweep rides the same worker                                                                                                              | new unanswered items announce themselves                     |
 | 8   | Search over closed items, README and configuration reference                                                                                                                     | publishable                                                  |
 
-Steps 1 to 3 are built, and step 4 is built for `choice` only: an agent writes a choice with `fuda write`, the person answers it on the screen in one click or in their own words, and the agent reads the answer with `fuda show`.
+Steps 1 to 4 are built except raise-a-separate-item: an agent writes an item with `fuda write`, the person answers every reply form, postpones, resumes or closes it on the screen, and the agent reads the answer with `fuda show`.
 
 Step 4b lands after the screen exists, because activity with nowhere to show it is a table nobody reads.
 

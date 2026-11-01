@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
-import { markRead, readItem, stillShowing } from './api.ts';
+import { useEffect, useState } from 'react';
+import { closeItem, complaint, markRead, readItem, stillShowing } from './api.ts';
 import { Section } from './section.tsx';
+
+// Every item this page has asked to mark, kept for the page's lifetime rather
+// than the pane's: the pane is remounted per item. One attempt per item: a mark
+// that fails stays unread until the page is reloaded, which is cheaper than a
+// retry loop against a failing server.
+const marked = new Set<string>();
 
 export function Detail({ id, person }: { id: string; person: string | null }) {
   const item = useQuery({ queryKey: ['item', id], queryFn: () => readItem(id) });
   const client = useQueryClient();
-  // Every item this screen has asked to mark, kept for as long as the screen is
-  // open. One attempt per item: a mark that fails stays unread until the page
-  // is reloaded, which is cheaper than a retry loop against a failing server.
-  const marked = useRef(new Set<string>());
 
   const { mutate: markAsRead } = useMutation({
     mutationFn: (target: string) => markRead(target),
@@ -19,11 +21,25 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
     },
   });
 
+  const [said, setSaid] = useState<string | null>(null);
+
+  const { mutate: close, isPending: closing } = useMutation({
+    mutationFn: () => closeItem(id),
+    onSuccess: () => {
+      setSaid(null);
+      void client.invalidateQueries();
+    },
+    onError: (error: unknown) => {
+      setSaid(complaint(error));
+      void client.invalidateQueries();
+    },
+  });
+
   useEffect(() => {
     if (item.data === undefined || item.data.readAt !== null) return;
-    if (marked.current.has(id)) return;
+    if (marked.has(id)) return;
 
-    marked.current.add(id);
+    marked.add(id);
     markAsRead(id);
   }, [id, item.data, markAsRead]);
 
@@ -36,16 +52,24 @@ export function Detail({ id, person }: { id: string; person: string | null }) {
     <>
       {item.isError ? <p className="complaint">{stillShowing}</p> : null}
       <div className="detail-head">
-        <h1>{item.data.summary}</h1>
-        <div className="labels">
-          <span className="label">{item.data.sender}</span>
-          {Object.entries(item.data.attribution).map(([key, value]) => (
-            <span className="label" key={key}>
-              {key}={value}
-            </span>
-          ))}
-          {item.data.closedAt === null ? null : <span className="label">closed</span>}
+        <div>
+          <h1>{item.data.summary}</h1>
+          <div className="labels">
+            <span className="label">{item.data.sender}</span>
+            {Object.entries(item.data.attribution).map(([key, value]) => (
+              <span className="label" key={key}>
+                {key}={value}
+              </span>
+            ))}
+            {item.data.closedAt === null ? null : <span className="label">closed</span>}
+          </div>
+          {said === null ? null : <p className="complaint">{said}</p>}
         </div>
+        {item.data.closedAt === null ? (
+          <button className="btn ghost" disabled={closing} onClick={() => close()}>
+            close item
+          </button>
+        ) : null}
       </div>
       <div className="scroll">
         <div className="sections">

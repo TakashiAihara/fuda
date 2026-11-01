@@ -144,6 +144,18 @@ export function sendReply(sectionId: string, reply: Reply): Promise<unknown> {
   });
 }
 
+/** Postponing and taking back up are the same call to different paths. */
+export function setPostponed(sectionId: string, postponed: boolean): Promise<unknown> {
+  return asked(`/api/sections/${encodeURIComponent(sectionId)}/${postponed ? 'defer' : 'resume'}`, {
+    method: 'POST',
+  });
+}
+
+/** The sender is left out here too; closing is the flag, not an answer. */
+export function closeItem(id: string): Promise<unknown> {
+  return asked(`/api/items/${encodeURIComponent(id)}/close`, { method: 'POST' });
+}
+
 /** Shown above data a refetch could not replace, so it is not read as current. */
 export const stillShowing = 'could not reload from fuda — showing what was last loaded';
 
