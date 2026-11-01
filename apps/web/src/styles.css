@@ -224,6 +224,16 @@ body {
   flex: none;
 }
 
+/* The title side shrinks and wraps, so a long label never pushes the close
+   button out of the pane. */
+.detail-head > div {
+  min-width: 0;
+}
+
+.detail-head > .btn {
+  flex: none;
+}
+
 .detail-head h1 {
   margin: 0 0 6px;
   font-size: 17px;
@@ -246,6 +256,7 @@ body {
   background: var(--sunk);
   border-radius: 4px;
   padding: 1px 6px;
+  overflow-wrap: anywhere;
 }
 
 .sections {
