@@ -34,6 +34,28 @@ export type ListQuery = {
   offset?: number | undefined;
 };
 
+/** The origin named is not one that can be stored: not found, not that item's own, or half of a pair. */
+export class OriginRefused extends Error {
+  constructor() {
+    super('the origin must name a section that belongs to the item it names, and both must be given');
+  }
+}
+
+const ORIGIN_CONSTRAINTS: readonly string[] = ['items_origin_fk', 'items_origin_pair_check'];
+
+// The driver wraps the PostgreSQL error as `cause`, so the constraint name is read from there.
+function refusesOrigin(error: unknown): boolean {
+  const cause = error instanceof Error ? error.cause : undefined;
+
+  return (
+    typeof cause === 'object' &&
+    cause !== null &&
+    'constraint_name' in cause &&
+    typeof cause.constraint_name === 'string' &&
+    ORIGIN_CONSTRAINTS.includes(cause.constraint_name)
+  );
+}
+
 export function createItemRepository(database: Database) {
   const { db } = database;
 
@@ -43,47 +65,51 @@ export function createItemRepository(database: Database) {
      * is not a smaller exchange, it is a broken one.
      */
     async write(input: Item): Promise<ItemWithSections> {
-      return db.transaction(async (tx) => {
-        const [item] = await tx
-          .insert(items)
-          .values({
-            summary: input.summary,
-            sender: input.sender,
-            attribution: input.attribution,
-            originItemId: input.originItemId,
-            originSectionId: input.originSectionId,
-          })
-          .returning();
+      return db
+        .transaction(async (tx) => {
+          const [item] = await tx
+            .insert(items)
+            .values({
+              summary: input.summary,
+              sender: input.sender,
+              attribution: input.attribution,
+              originItemId: input.originItemId,
+              originSectionId: input.originSectionId,
+            })
+            .returning();
 
-        if (item === undefined) throw new Error('the item was not written');
+          if (item === undefined) throw new Error('the item was not written');
 
-        const now = new Date();
+          const now = new Date();
 
-        const written = await tx
-          .insert(sections)
-          .values(
-            input.sections.map((section, position) => {
-              const state = initialStateFor(section.replyForm);
+          const written = await tx
+            .insert(sections)
+            .values(
+              input.sections.map((section, position) => {
+                const state = initialStateFor(section.replyForm);
 
-              return {
-                itemId: item.id,
-                position,
-                kind: section.kind,
-                replyForm: section.replyForm,
-                recipient: section.recipient,
-                body: section.body,
-                state,
-                // Stamped here rather than defaulted in the database: the list
-                // orders by it, and a section that starts unanswered without
-                // one cannot be placed. The check constraint refuses it too.
-                unansweredSince: state === 'unanswered' ? now : null,
-              };
-            }),
-          )
-          .returning();
+                return {
+                  itemId: item.id,
+                  position,
+                  kind: section.kind,
+                  replyForm: section.replyForm,
+                  recipient: section.recipient,
+                  body: section.body,
+                  state,
+                  // Stamped here rather than defaulted in the database: the list
+                  // orders by it, and a section that starts unanswered without
+                  // one cannot be placed. The check constraint refuses it too.
+                  unansweredSince: state === 'unanswered' ? now : null,
+                };
+              }),
+            )
+            .returning();
 
-        return { ...item, sections: written };
-      });
+          return { ...item, sections: written };
+        })
+        .catch((error: unknown) => {
+          throw refusesOrigin(error) ? new OriginRefused() : error;
+        });
     },
 
     async read(id: string): Promise<ItemWithSections | null> {

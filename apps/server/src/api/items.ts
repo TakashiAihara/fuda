@@ -2,7 +2,7 @@ import { itemInputSchema } from '@fuda/core';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Changes } from '../events.ts';
-import type { ItemRepository } from '../repository/items.ts';
+import { OriginRefused, type ItemRepository } from '../repository/items.ts';
 
 export type ItemRoutesDependencies = {
   repository: ItemRepository;
@@ -54,10 +54,17 @@ export function createItemRoutes(deps: ItemRoutesDependencies) {
       return c.json({ error: 'the item is not writable', problems: parsed.error.issues }, 400);
     }
 
-    const written = await deps.repository.write({
-      ...parsed.data,
-      sender: parsed.data.sender ?? deps.personIdentity,
-    });
+    const written = await deps.repository
+      .write({
+        ...parsed.data,
+        sender: parsed.data.sender ?? deps.personIdentity,
+      })
+      .catch((error: unknown) => {
+        if (error instanceof OriginRefused) return error;
+        throw error;
+      });
+
+    if (written instanceof OriginRefused) return c.json({ error: written.message }, 400);
 
     deps.changes.publish({ type: 'item.written', itemId: written.id });
 
