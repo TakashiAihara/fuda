@@ -81,8 +81,9 @@ type Flags = {
 export function parseCommand(command: string, args: string[]) {
   if (!Object.hasOwn(optionsFor, command)) throw new Error(`no such command: ${command}. Try fuda help`);
 
-  // strict makes parseArgs throw on a flag the subcommand does not have, so a
-  // flag meant for another subcommand is refused instead of silently ignored.
+  // Each subcommand gets only its own option table, so a flag meant for another
+  // subcommand is unknown here and parseArgs refuses it. strict is its default;
+  // it is spelled out because the refusal depends on it.
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,

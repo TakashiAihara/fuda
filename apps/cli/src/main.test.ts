@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseCommand, run } from './main.ts';
 import { createReporter } from './report.ts';
 
@@ -58,6 +58,9 @@ describe('flags per subcommand', () => {
   });
 
   it('refuses before it needs any configuration', async () => {
+    // Pinned empty rather than left to the shell: with a sender exported, a
+    // refusal that came after reading the configuration would look the same.
+    vi.stubEnv('FUDA_SENDER', '');
     const said: string[] = [];
     const report = createReporter(
       (t) => said.push(t),
@@ -67,4 +70,8 @@ describe('flags per subcommand', () => {
     await expect(run(['show', '01ABC', '--state', 'all'], report)).rejects.toThrow(/--state/);
     expect(said).toEqual([]);
   });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
